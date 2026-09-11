@@ -219,7 +219,9 @@ if menu_principal == "Visão geral":
 # 2. DADOS DA OBRA
 elif menu_principal == "Dados da obra":
     st.title("Cadastro e Dados da Obra")
+    
     col_inf, col_img = st.columns([2, 1])
+    
     with col_inf:
         st.markdown("<div class='stCard'>", unsafe_allow_html=True)
         st.subheader("Informações Principais")
@@ -227,15 +229,36 @@ elif menu_principal == "Dados da obra":
         st.text_input("CLIENTE", value="Prefeitura Municipal")
         st.text_input("ENDEREÇO", value="Guarulhos - SP")
         st.number_input("VALOR CONTRATUAL (R$)", value=float(val_contrato))
-        if st.button("Salvar alterações"):
+        
+        if st.button("Salvar alterações de cadastro"):
             st.success("Dados salvos com sucesso!")
         st.markdown("</div>", unsafe_allow_html=True)
+        
     with col_img:
         st.markdown("<div class='stCard'>", unsafe_allow_html=True)
         st.subheader("Foto da Obra")
-        uploaded_image = st.file_uploader("Selecione foto de capa", type=["png", "jpg", "jpeg"])
-        if uploaded_image:
-            st.image(uploaded_image, use_container_width=True)
+        
+        # Identificador da obra selecionada para nomear o arquivo
+        obra_id = int(selected_id) if selected_obra_str != "Todas as Obras" else "geral"
+        caminho_foto = f"foto_obra_{obra_id}.png"
+        
+        # 1. Carrega foto existente no servidor se já houver salva
+        if os.path.exists(caminho_foto):
+            st.image(caminho_foto, caption=f"Foto da Obra {obra_id}", use_container_width=True)
+        else:
+            st.info("Nenhuma foto cadastrada para esta obra.")
+            
+        # 2. Campo para upload de nova foto
+        uploaded_image = st.file_uploader("Selecione/alterar foto de capa (PNG/JPG)", type=["png", "jpg", "jpeg"], key=f"upload_{obra_id}")
+        
+        if uploaded_image is not None:
+            if st.button("Salvar Foto da Obra"):
+                # Salva a imagem enviada no disco com o ID da obra
+                with open(caminho_foto, "wb") as f:
+                    f.write(uploaded_image.getbuffer())
+                st.success("Foto salva com sucesso para esta obra!")
+                st.rerun() # Atualiza a tela para exibir a foto salva
+                
         st.markdown("</div>", unsafe_allow_html=True)
 
 # 3. DRE
