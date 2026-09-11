@@ -39,20 +39,17 @@ def load_data():
 try:
     df_custo, df_fat, df_cont = load_data()
 except Exception as e:
-    st.error(f"Erro ao carregar os arquivos de Excel. Verifique se os nomes dos arquivos no GitHub estão idênticos. Detalhes: {e}")
+    st.error(f"Erro ao carregar os arquivos de Excel. Verifique os nomes no GitHub. Detalhes: {e}")
     st.stop()
 
 # --- BARRA LATERAL (SIDEBAR) ---
-# 1. LOGO DA EMPRESA
-logo_path = 'logo.png' # Suporta logo.png, logo.jpg, logo.jpeg
-if os.path.exists(logo_path):
-    st.sidebar.image(logo_path, use_container_width=True)
-elif os.path.exists('logo.jpg'):
-    st.sidebar.image('logo.jpg', use_container_width=True)
-elif os.path.exists('logo.jpeg'):
-    st.sidebar.image('logo.jpeg', use_container_width=True)
+# Busca por imagens de logo na raiz do repositório
+logo_files = [f for f in os.listdir('.') if f.lower().startswith('logo') and f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+
+if logo_files:
+    st.sidebar.image(logo_files[0], use_container_width=True)
 else:
-    st.sidebar.info("💡 Para exibir sua logo, envie um arquivo chamado 'logo.png' para o seu repositório no GitHub.")
+    st.sidebar.info("💡 Para exibir sua logo, envie uma imagem com nome 'logo.png' no GitHub.")
 
 st.sidebar.title("Filtros do Portfólio")
 status_list = ["Todos"] + list(df_cont['Status'].dropna().unique())
@@ -74,18 +71,18 @@ else:
     df_c_curr = df_custo[df_custo['Filial AJUST'].isin(obras_disponiveis)]
     df_f_curr = df_fat[df_fat['OBRA'].isin(obras_disponiveis)]
 
+val_contratado = df_cont_curr['Valor Final Contratual'].sum()
+fat_bruto = df_f_curr['Valor Bruto'].sum()
+custo_realizado = df_c_curr['Vr. Rateio'].sum()
+resultado_bruto = fat_bruto - custo_realizado
+margem_pct = (resultado_bruto / fat_bruto * 100) if fat_bruto > 0 else 0
+
 tab_curva, tab_12m, tab_dre, tab_kpi = st.tabs([
     "📈 Curva S & Evolução", 
     "📊 Últimos 12 Meses", 
     "📋 DRE & Impostos", 
     "🎯 KPIs de Obras"
 ])
-
-val_contratado = df_cont_curr['Valor Final Contratual'].sum()
-fat_bruto = df_f_curr['Valor Bruto'].sum()
-custo_realizado = df_c_curr['Vr. Rateio'].sum()
-resultado_bruto = fat_bruto - custo_realizado
-margem_pct = (resultado_bruto / fat_bruto * 100) if fat_bruto > 0 else 0
 
 # --- ABA 1: CURVA S ---
 with tab_curva:
@@ -114,9 +111,9 @@ with tab_curva:
     fig_curva.add_trace(go.Scatter(x=df_curva['MesAno'].dt.strftime('%m/%Y'), y=df_curva['Faturamento Acumulado'], mode='lines+markers', name='Faturamento Acumulado', line=dict(color='#00D1B2', width=3)))
     fig_curva.add_trace(go.Scatter(x=df_curva['MesAno'].dt.strftime('%m/%Y'), y=df_curva['Custo Acumulado'], mode='lines+markers', name='Custo Realizado Acumulado', line=dict(color='#FF3860', width=3)))
     fig_curva.update_layout(template="plotly_dark", hovermode="x unified")
-    st.plotly_chart(fig_curva, use_container_width=True)
+    st.plotly_chart(fig_curva, use_container_width=True, key="chart_curva_s_unique")
 
-# --- ABA 2: ÚLTIMOS 12 MESES (NOVO GRÁFICO) ---
+# --- ABA 2: ÚLTIMOS 12 MESES ---
 with tab_12m:
     st.header("Análise Mensal dos Últimos 12 Meses")
 
@@ -136,50 +133,22 @@ with tab_12m:
     df_12m['MesAno_Label'] = df_12m['MesAno'].dt.strftime('%m/%Y')
 
     fig_12m = go.Figure()
-
-    # Barras de Faturamento
-    fig_12m.add_trace(go.Bar(
-        x=df_12m['MesAno_Label'],
-        y=df_12m['Valor Bruto'],
-        name='Faturamento Bruto',
-        marker_color='#00D1B2'
-    ))
-
-    # Barras de Custo
-    fig_12m.add_trace(go.Bar(
-        x=df_12m['MesAno_Label'],
-        y=df_12m['Vr. Rateio'],
-        name='Custo Realizado',
-        marker_color='#FF3860'
-    ))
-
-    # Linha de Margem (%)
+    fig_12m.add_trace(go.Bar(x=df_12m['MesAno_Label'], y=df_12m['Valor Bruto'], name='Faturamento Bruto', marker_color='#00D1B2'))
+    fig_12m.add_trace(go.Bar(x=df_12m['MesAno_Label'], y=df_12m['Vr. Rateio'], name='Custo Realizado', marker_color='#FF3860'))
     fig_12m.add_trace(go.Scatter(
-        x=df_12m['MesAno_Label'],
-        y=df_12m['Margem_Pct'],
-        name='Margem (%)',
-        yaxis='y2',
-        mode='lines+markers+text',
-        text=[f"{m:.1f}%" for m in df_12m['Margem_Pct']],
-        textposition="top center",
-        line=dict(color='#FFDD57', width=3)
+        x=df_12m['MesAno_Label'], y=df_12m['Margem_Pct'], name='Margem (%)', yaxis='y2',
+        mode='lines+markers+text', text=[f"{m:.1f}%" for m in df_12m['Margem_Pct']],
+        textposition="top center", line=dict(color='#FFDD57', width=3)
     ))
 
     fig_12m.update_layout(
-        template="plotly_dark",
-        barmode='group',
-        hovermode="x unified",
+        template="plotly_dark", barmode='group', hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         yaxis=dict(title="Valor (R$)"),
-        yaxis2=dict(
-            title="Margem (%)",
-            overlaying='y',
-            side='right',
-            showgrid=False
-        )
+        yaxis2=dict(title="Margem (%)", overlaying='y', side='right', showgrid=False)
     )
 
-    st.plotly_chart(fig_12m, use_container_width=True)
+    st.plotly_chart(fig_12m, use_container_width=True, key="chart_12m_unique")
 
 # --- ABA 3: DRE OPERACIONAL ---
 with tab_dre:
@@ -209,7 +178,4 @@ with tab_kpi:
         color='Resultado', 
         template="plotly_dark"
     )
-    st.plotly_chart(fig_b, use_container_width=True)
-    df_k['Resultado'] = df_k['Valor Bruto'] - df_k['Vr. Rateio']
-    fig_b = px.bar(df_k.sort_values('Resultado'), x='Resultado', y='NM Contrato', orientation='h', color='Resultado', template="plotly_dark")
-    st.plotly_chart(fig_b, use_container_width=True)
+    st.plotly_chart(fig_b, use_container_width=True, key="chart_ranking_unique")
