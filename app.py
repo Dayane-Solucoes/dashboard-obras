@@ -15,9 +15,9 @@ st.markdown("""
 
 @st.cache_data
 def load_data():
-    df_custo = pd.read_excel('Custo dash.xlsx')
-    df_fat = pd.read_excel('faturamento dash.xlsx')
-    df_cont = pd.read_excel('contratos dash.xlsx')
+    df_custo = pd.read_excel('BD_Custo.xlsx')
+    df_fat = pd.read_excel('BD_Faturamento.xlsx')
+    df_cont = pd.read_excel('BD_Contratos.xlsx')
 
     df_c = df_custo[df_custo['Considerar'] == 'S'].copy()
     df_c['Comp. C'] = pd.to_datetime(df_c['Comp. C'])
