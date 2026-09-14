@@ -142,6 +142,7 @@ if menu_principal == "Visão geral":
     sub_aba = st.radio("", ["Resumo", "Financeiro", "Operacional"], horizontal=True)
 
     if sub_aba == "Resumo":
+        # Cards numéricos superiores
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.markdown(f'<div class="stCard"><div class="metric-label">VALOR CONTRATUAL</div><div class="metric-value">{fmt_br(val_contrato)}</div><div class="metric-sub">↗ cadastro da obra</div></div>', unsafe_allow_html=True)
@@ -152,45 +153,44 @@ if menu_principal == "Visão geral":
         with col4:
             st.markdown(f'<div class="stCard"><div class="metric-label">RECEBIDO ACUMULADO</div><div class="metric-value">{fmt_br(fat_bruto)}</div><div class="metric-sub">↗ faturamento</div></div>', unsafe_allow_html=True)
 
-        c_left, c_right = st.columns([2, 1])
-        with c_left:
-            st.markdown("### Resultado Mensal (Faturado, Custo e Margem)")
-            
-            # Agrupamento Cronológico do Custo
-            df_c_temp = df_c_curr.copy()
-            df_c_temp['Periodo'] = df_c_temp['Comp. C'].dt.to_period('M')
-            c_mes = df_c_temp.groupby('Periodo')['Vr. Rateio'].sum().reset_index()
+        # 1. Gráfico Superior: Resultado Mensal (Barras + Linha)
+        st.markdown("### Resultado Mensal (Faturado, Custo e Margem)")
+        
+        # Agrupamento Cronológico do Custo
+        df_c_temp = df_c_curr.copy()
+        df_c_temp['Periodo'] = df_c_temp['Comp. C'].dt.to_period('M')
+        c_mes = df_c_temp.groupby('Periodo')['Vr. Rateio'].sum().reset_index()
 
-            # Agrupamento Cronológico do Faturamento
-            df_f_temp = df_f_curr.copy()
-            df_f_temp['Periodo'] = df_f_temp['COMP MED'].dt.to_period('M')
-            f_mes = df_f_temp.groupby('Periodo')['Valor Bruto'].sum().reset_index()
+        # Agrupamento Cronológico do Faturamento
+        df_f_temp = df_f_curr.copy()
+        df_f_temp['Periodo'] = df_f_temp['COMP MED'].dt.to_period('M')
+        f_mes = df_f_temp.groupby('Periodo')['Valor Bruto'].sum().reset_index()
 
-            # Unificação Ordenada
-            df_m = pd.merge(f_mes, c_mes, on='Periodo', how='outer').fillna(0).sort_values('Periodo')
-            df_m['MesAno'] = df_m['Periodo'].dt.strftime('%m/%Y')
-            df_m['Margem'] = np.where(df_m['Valor Bruto'] > 0, ((df_m['Valor Bruto'] - df_m['Vr. Rateio']) / df_m['Valor Bruto']) * 100, 0)
+        # Unificação Ordenada
+        df_m = pd.merge(f_mes, c_mes, on='Periodo', how='outer').fillna(0).sort_values('Periodo')
+        df_m['MesAno'] = df_m['Periodo'].dt.strftime('%m/%Y')
+        df_m['Margem'] = np.where(df_m['Valor Bruto'] > 0, ((df_m['Valor Bruto'] - df_m['Vr. Rateio']) / df_m['Valor Bruto']) * 100, 0)
 
-            # Gráfico de Barras + Linha de Margem
-            fig_comb = make_subplots(specs=[[{"secondary_y": True}]])
-            
-            fig_comb.add_trace(go.Bar(x=df_m['MesAno'], y=df_m['Valor Bruto'], name="Faturado", marker_color='#2563EB'), secondary_y=False)
-            fig_comb.add_trace(go.Bar(x=df_m['MesAno'], y=df_m['Vr. Rateio'], name="Custo Realizado", marker_color='#DC2626'), secondary_y=False)
-            fig_comb.add_trace(go.Scatter(x=df_m['MesAno'], y=df_m['Margem'], name="Margem (%)", mode="lines+markers", line=dict(color='#10B981', width=3)), secondary_y=True)
+        # Configuração do Gráfico Combinado
+        fig_comb = make_subplots(specs=[[{"secondary_y": True}]])
+        fig_comb.add_trace(go.Bar(x=df_m['MesAno'], y=df_m['Valor Bruto'], name="Faturado", marker_color='#2563EB'), secondary_y=False)
+        fig_comb.add_trace(go.Bar(x=df_m['MesAno'], y=df_m['Vr. Rateio'], name="Custo Realizado", marker_color='#DC2626'), secondary_y=False)
+        fig_comb.add_trace(go.Scatter(x=df_m['MesAno'], y=df_m['Margem'], name="Margem (%)", mode="lines+markers", line=dict(color='#10B981', width=3)), secondary_y=True)
 
-            fig_comb.update_layout(barmode='group', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.1))
-            fig_comb.update_yaxes(title_text="Valor (R$)", secondary_y=False)
-            fig_comb.update_yaxes(title_text="Margem (%)", secondary_y=True)
-            st.plotly_chart(fig_comb, use_container_width=True, key="fig_vg_comb")
+        fig_comb.update_layout(barmode='group', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.1))
+        fig_comb.update_yaxes(title_text="Valor (R$)", secondary_y=False)
+        fig_comb.update_yaxes(title_text="Margem (%)", secondary_y=True)
+        st.plotly_chart(fig_comb, use_container_width=True, key="fig_vg_comb")
 
-        with c_right:
-            st.markdown("### Distribuição de Custos")
-            # Leitura da coluna AC (Grupo 1)
-            col_g1 = df_c_curr.columns[28] if len(df_c_curr.columns) >= 29 else df_c_curr.columns[0]
-            df_pie = df_c_curr.groupby(col_g1)['Vr. Rateio'].sum().reset_index()
-            fig_pie = px.pie(df_pie, values='Vr. Rateio', names=col_g1, hole=0.6, color_discrete_sequence=px.colors.qualitative.Set2)
-            fig_pie.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-            st.plotly_chart(fig_pie, use_container_width=True, key="pie_vg")
+        st.markdown("---")
+
+        # 2. Gráfico Inferior: Rosca de Distribuição de Custos (Posicionado logo abaixo)
+        st.markdown("### Distribuição de Custos")
+        col_g1 = df_c_curr.columns[28] if len(df_c_curr.columns) >= 29 else df_c_curr.columns[0]
+        df_pie = df_c_curr.groupby(col_g1)['Vr. Rateio'].sum().reset_index()
+        fig_pie = px.pie(df_pie, values='Vr. Rateio', names=col_g1, hole=0.6, color_discrete_sequence=px.colors.qualitative.Set2)
+        fig_pie.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        st.plotly_chart(fig_pie, use_container_width=True, key="pie_vg")
 
     elif sub_aba == "Financeiro":
         st.subheader("Resumo Financeiro da Obra")
@@ -238,26 +238,22 @@ elif menu_principal == "Dados da obra":
         st.markdown("<div class='stCard'>", unsafe_allow_html=True)
         st.subheader("Foto da Obra")
         
-        # Identificador da obra selecionada para nomear o arquivo
         obra_id = int(selected_id) if selected_obra_str != "Todas as Obras" else "geral"
         caminho_foto = f"foto_obra_{obra_id}.png"
         
-        # 1. Carrega foto existente no servidor se já houver salva
         if os.path.exists(caminho_foto):
             st.image(caminho_foto, caption=f"Foto da Obra {obra_id}", use_container_width=True)
         else:
             st.info("Nenhuma foto cadastrada para esta obra.")
             
-        # 2. Campo para upload de nova foto
         uploaded_image = st.file_uploader("Selecione/alterar foto de capa (PNG/JPG)", type=["png", "jpg", "jpeg"], key=f"upload_{obra_id}")
         
         if uploaded_image is not None:
             if st.button("Salvar Foto da Obra"):
-                # Salva a imagem enviada no disco com o ID da obra
                 with open(caminho_foto, "wb") as f:
                     f.write(uploaded_image.getbuffer())
                 st.success("Foto salva com sucesso para esta obra!")
-                st.rerun() # Atualiza a tela para exibir a foto salva
+                st.rerun()
                 
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -305,7 +301,6 @@ elif menu_principal == "Custos":
     with col_c2:
         st.markdown("### Custos por Categoria")
         
-        # Leitura direta das colunas AC (30ª - índice 28) e AD (31ª - índice 29)
         col_g1 = df_c_curr.columns[28] if len(df_c_curr.columns) >= 29 else df_c_curr.columns[0]
         col_g2 = df_c_curr.columns[29] if len(df_c_curr.columns) >= 30 else df_c_curr.columns[0]
         
