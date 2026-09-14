@@ -17,22 +17,14 @@ st.markdown("""
     
     /* Barra Lateral Azul Escuro */
     [data-testid="stSidebar"] { background-color: #0B132B; color: #FFFFFF; }
-    [data-testid="stSidebar"] * { color: #E2E8F0; }
+    [data-testid="stSidebar"] * { color: #E2E8F0 !important; }
     
-    /* Card do Logo em Fundo Branco (Com !important para sobrescrever o estilo da sidebar) */
-    .logo-container {
+    /* Fundo Branco e Borda Arredondada especificamente para o Logo na Sidebar */
+    [data-testid="stSidebar"] img {
         background-color: #FFFFFF !important;
-        padding: 16px !important;
+        padding: 12px !important;
         border-radius: 12px !important;
-        text-align: center !important;
-        margin-bottom: 20px !important;
-        display: block !important;
-    }
-    
-    /* Garante que a imagem do logo preencha o container corretamente */
-    .logo-container img {
-        background-color: #FFFFFF !important;
-        border-radius: 8px !important;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15) !important;
     }
 
     /* Fundo Branco e Texto Escuro para o Selectbox da Obra */
@@ -103,11 +95,7 @@ except Exception as e:
 # --- BARRA LATERAL (MENU PRINCIPAL) ---
 logo_files = [f for f in os.listdir('.') if f.lower().startswith('logo') and f.lower().endswith(('.png', '.jpg', '.jpeg'))]
 if logo_files:
-    st.sidebar.markdown(f'''
-        <div class="logo-container">
-            <img src="data:image/png;base64,{st.image(logo_files[0])}" style="width:100%;">
-        </div>
-    ''', unsafe_allow_html=True)
+    st.sidebar.image(logo_files[0], use_container_width=True)
 
 st.sidebar.markdown("### PORTFÓLIO / OBRAS")
 menu_principal = st.sidebar.radio(
@@ -151,7 +139,6 @@ if menu_principal == "Visão geral":
     sub_aba = st.radio("", ["Resumo", "Financeiro", "Operacional"], horizontal=True)
 
     if sub_aba == "Resumo":
-        # Cards numéricos superiores
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.markdown(f'<div class="stCard"><div class="metric-label">VALOR CONTRATUAL</div><div class="metric-value">{fmt_br(val_contrato)}</div><div class="metric-sub">↗ cadastro da obra</div></div>', unsafe_allow_html=True)
@@ -162,7 +149,6 @@ if menu_principal == "Visão geral":
         with col4:
             st.markdown(f'<div class="stCard"><div class="metric-label">RECEBIDO ACUMULADO</div><div class="metric-value">{fmt_br(fat_bruto)}</div><div class="metric-sub">↗ faturamento</div></div>', unsafe_allow_html=True)
 
-        # 1. Gráfico Superior: Resultado Mensal (Barras + Linha)
         st.markdown("### Resultado Mensal (Faturado, Custo e Margem)")
         
         # Agrupamento Cronológico do Custo
@@ -180,8 +166,9 @@ if menu_principal == "Visão geral":
         df_m['MesAno'] = df_m['Periodo'].dt.strftime('%m/%Y')
         df_m['Margem'] = np.where(df_m['Valor Bruto'] > 0, ((df_m['Valor Bruto'] - df_m['Vr. Rateio']) / df_m['Valor Bruto']) * 100, 0)
 
-        # Configuração do Gráfico Combinado
+        # Gráfico de Barras + Linha de Margem
         fig_comb = make_subplots(specs=[[{"secondary_y": True}]])
+        
         fig_comb.add_trace(go.Bar(x=df_m['MesAno'], y=df_m['Valor Bruto'], name="Faturado", marker_color='#2563EB'), secondary_y=False)
         fig_comb.add_trace(go.Bar(x=df_m['MesAno'], y=df_m['Vr. Rateio'], name="Custo Realizado", marker_color='#DC2626'), secondary_y=False)
         fig_comb.add_trace(go.Scatter(x=df_m['MesAno'], y=df_m['Margem'], name="Margem (%)", mode="lines+markers", line=dict(color='#10B981', width=3)), secondary_y=True)
@@ -193,7 +180,6 @@ if menu_principal == "Visão geral":
 
         st.markdown("---")
 
-        # 2. Gráfico Inferior: Rosca de Distribuição de Custos (Posicionado logo abaixo)
         st.markdown("### Distribuição de Custos")
         col_g1 = df_c_curr.columns[28] if len(df_c_curr.columns) >= 29 else df_c_curr.columns[0]
         df_pie = df_c_curr.groupby(col_g1)['Vr. Rateio'].sum().reset_index()
