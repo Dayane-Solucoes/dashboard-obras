@@ -59,6 +59,24 @@ st.markdown("""
         font-weight: 600;
         border: none;
     }
+
+    /* Badge de status e sub-linha de cabeçalho */
+    .status-badge {
+        background-color: #DCFCE7;
+        color: #166534 !important;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        display: inline-block;
+        margin-bottom: 8px;
+    }
+    .header-subtext {
+        font-size: 0.9rem;
+        color: #64748B;
+        margin-top: 4px;
+        margin-bottom: 15px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -116,14 +134,10 @@ if selected_obra_str != "Todas as Obras":
     df_cont_curr = df_cont[df_cont['N° Obra'] == selected_id]
     df_c_curr = df_custo[df_custo['Filial AJUST'] == selected_id]
     df_f_curr = df_fat[df_fat['OBRA'] == selected_id]
-    # Título dinâmico com a obra em destaque
-    titulo_pagina = f"Acompanhamento de obras - <span style='color: #2563EB;'>{selected_obra_str}</span>"
 else:
     df_cont_curr = df_cont
     df_c_curr = df_custo
     df_f_curr = df_fat
-    # Título padrão para "Todas as Obras"
-    titulo_pagina = "Acompanhamento de obras"
 
 # Indicadores Consolidados
 val_contrato = df_cont_curr['Valor Final Contratual'].sum() if 'Valor Final Contratual' in df_cont_curr else 0
@@ -134,14 +148,24 @@ custo_total = custo_direto + custo_indireto
 resultado_op = fat_bruto - custo_total
 cpi = (fat_bruto / custo_direto) if custo_direto > 0 else 1.0
 
-# Percentual do Avanço Físico acumulado baseado no Faturamento / Contrato
-avanco_fisico_pct = (fat_bruto / val_contrato * 100) if val_contrato > 0 else 0
+# --- LÓGICA DE CABEÇALHO DINÂMICO ---
+def render_header(nome_modulo_generico):
+    if selected_obra_str != "Todas as Obras":
+        st.markdown('<div class="status-badge">Em andamento</div> <span style="font-size:0.8rem; color:#64748B;">Última atualização - acompanhamento ativo</span>', unsafe_allow_html=True)
+        st.markdown(f"<h1 style='margin-top:-10px;'>OBRA - {selected_obra_str}</h1>", unsafe_allow_html=True)
+        
+        # Tenta obter dados de cliente/local se existirem nas colunas
+        cliente = df_cont_curr['CLIENTE'].iloc[0] if 'CLIENTE' in df_cont_curr.columns and len(df_cont_curr) > 0 else "Cliente Municipal"
+        local = df_cont_curr['CIDADE'].iloc[0] if 'CIDADE' in df_cont_curr.columns and len(df_cont_curr) > 0 else "Guarulhos - SP"
+        st.markdown(f'<div class="header-subtext">🏛️ {cliente} &nbsp;&nbsp;&nbsp; 📍 {local}</div>', unsafe_allow_html=True)
+    else:
+        st.markdown(f"<h1>{nome_modulo_generico}</h1>", unsafe_allow_html=True)
 
 # --- NAVEGAÇÃO ---
 
 # 1. VISÃO GERAL
 if menu_principal == "Visão geral":
-    st.markdown(f"<h1>{titulo_pagina}</h1>", unsafe_allow_html=True)
+    render_header("Visão geral - Acompanhamento de Obras")
     
     sub_aba = st.radio("", ["Resumo", "Financeiro", "Operacional"], horizontal=True)
 
@@ -152,11 +176,11 @@ if menu_principal == "Visão geral":
         with col2:
             st.markdown(f'<div class="stCard"><div class="metric-label">RESULTADO ACUMULADO</div><div class="metric-value">{fmt_br(resultado_op)}</div><div class="metric-sub">↗ fechamento mensal</div></div>', unsafe_allow_html=True)
         with col3:
-            st.markdown(f'<div class="stCard"><div class="metric-label">AVANÇO FÍSICO</div><div class="metric-value">{avanco_fisico_pct:.1f}%</div><div class="metric-sub">↗ baseado em medições</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="stCard"><div class="metric-label">AVANÇO FÍSICO (FATURADO)</div><div class="metric-value">{fmt_br(fat_bruto)}</div><div class="metric-sub">↗ medições acumuladas</div></div>', unsafe_allow_html=True)
         with col4:
             st.markdown(f'<div class="stCard"><div class="metric-label">RECEBIDO ACUMULADO</div><div class="metric-value">{fmt_br(fat_bruto)}</div><div class="metric-sub">↗ faturamento</div></div>', unsafe_allow_html=True)
 
-        # Preparação dos Dados para Gráficos
+        # PREPARAÇÃO DOS DADOS TEMPORAIS (MENSAL E ACUMULADO)
         df_c_temp = df_c_curr.copy()
         df_c_temp['Periodo'] = df_c_temp['Comp. C'].dt.to_period('M')
         c_mes = df_c_temp.groupby('Periodo')['Vr. Rateio'].sum().reset_index()
@@ -165,63 +189,63 @@ if menu_principal == "Visão geral":
         df_f_temp['Periodo'] = df_f_temp['COMP MED'].dt.to_period('M')
         f_mes = df_f_temp.groupby('Periodo')['Valor Bruto'].sum().reset_index()
 
+        # Merge ordenado por data
         df_m = pd.merge(f_mes, c_mes, on='Periodo', how='outer').fillna(0).sort_values('Periodo')
         df_m['MesAno'] = df_m['Periodo'].dt.strftime('%m/%Y')
+        
+        # Cálculo dos valores acumulados para a Curva S
+        df_m['Faturamento_Acum'] = df_m['Valor Bruto'].cumsum()
+        df_m['Custo_Acum'] = df_m['Vr. Rateio'].cumsum()
         df_m['Margem'] = np.where(df_m['Valor Bruto'] > 0, ((df_m['Valor Bruto'] - df_m['Vr. Rateio']) / df_m['Valor Bruto']) * 100, 0)
 
-        # Cálculo das curvas acumuladas para a Curva S
-        df_m['Fat_Acum'] = df_m['Valor Bruto'].cumsum()
-        df_m['Custo_Acum'] = df_m['Vr. Rateio'].cumsum()
-        
-        base_contrato = val_contrato if val_contrato > 0 else df_m['Fat_Acum'].max()
-        df_m['Avanco_Fisico_%'] = (df_m['Fat_Acum'] / base_contrato) * 100 if base_contrato > 0 else 0
-        df_m['Avanco_Custo_%'] = (df_m['Custo_Acum'] / base_contrato) * 100 if base_contrato > 0 else 0
+        # 1. GRÁFICO DE CURVA S (FÍSICO X FINANCEIRO ACUMULADO)
+        st.markdown("### Curva S - Avanço Físico (Faturamento) vs Custo Acumulado")
+        fig_curva_s = go.Figure()
 
-        # 1. Gráfico Resultado Mensal
+        # Avanço Físico (Baseado em Faturamento Acumulado)
+        fig_curva_s.add_trace(go.Scatter(
+            x=df_m['MesAno'], 
+            y=df_m['Faturamento_Acum'], 
+            name="Avanço Físico (Faturamento Acumulado)", 
+            mode="lines+markers", 
+            line=dict(color='#2563EB', width=4)
+        ))
+
+        # Curva S de Custo Acumulado
+        fig_curva_s.add_trace(go.Scatter(
+            x=df_m['MesAno'], 
+            y=df_m['Custo_Acum'], 
+            name="Curva S - Custo Realizado Acumulado", 
+            mode="lines+markers", 
+            line=dict(color='#DC2626', width=4, dash='dash')
+        ))
+
+        fig_curva_s.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)', 
+            plot_bgcolor='rgba(0,0,0,0)', 
+            legend=dict(orientation="h", y=1.15),
+            yaxis_title="Valor Acumulado (R$)"
+        )
+        st.plotly_chart(fig_curva_s, use_container_width=True, key="fig_curva_s_vg")
+
+        st.markdown("---")
+
+        # 2. GRÁFICO DE BARRAS MENSAL COM MARGEM
         st.markdown("### Resultado Mensal (Faturado, Custo e Margem)")
         fig_comb = make_subplots(specs=[[{"secondary_y": True}]])
-        fig_comb.add_trace(go.Bar(x=df_m['MesAno'], y=df_m['Valor Bruto'], name="Faturado", marker_color='#2563EB'), secondary_y=False)
-        fig_comb.add_trace(go.Bar(x=df_m['MesAno'], y=df_m['Vr. Rateio'], name="Custo Realizado", marker_color='#DC2626'), secondary_y=False)
+        
+        fig_comb.add_trace(go.Bar(x=df_m['MesAno'], y=df_m['Valor Bruto'], name="Faturado Mensal", marker_color='#2563EB'), secondary_y=False)
+        fig_comb.add_trace(go.Bar(x=df_m['MesAno'], y=df_m['Vr. Rateio'], name="Custo Mensal", marker_color='#DC2626'), secondary_y=False)
         fig_comb.add_trace(go.Scatter(x=df_m['MesAno'], y=df_m['Margem'], name="Margem (%)", mode="lines+markers", line=dict(color='#10B981', width=3)), secondary_y=True)
 
-        fig_comb.update_layout(barmode='group', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.1))
-        fig_comb.update_yaxes(title_text="Valor (R$)", secondary_y=False)
+        fig_comb.update_layout(barmode='group', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.15))
+        fig_comb.update_yaxes(title_text="Valor Mensal (R$)", secondary_y=False)
         fig_comb.update_yaxes(title_text="Margem (%)", secondary_y=True)
         st.plotly_chart(fig_comb, use_container_width=True, key="fig_vg_comb")
 
         st.markdown("---")
 
-        # 2. Gráfico da Curva S
-        st.markdown("### Curva S (Avanço Físico vs Avanço de Custo Acumulado)")
-        fig_curva_s = go.Figure()
-        
-        fig_curva_s.add_trace(go.Scatter(
-            x=df_m['MesAno'], y=df_m['Avanco_Fisico_%'],
-            name="Avanço Físico (Faturamento Acum. %)",
-            mode="lines+markers",
-            line=dict(color='#2563EB', width=3, shape='spline')
-        ))
-        
-        fig_curva_s.add_trace(go.Scatter(
-            x=df_m['MesAno'], y=df_m['Avanco_Custo_%'],
-            name="Avanço de Custo (Custo Acum. %)",
-            mode="lines+markers",
-            line=dict(color='#DC2626', width=3, shape='spline')
-        ))
-
-        fig_curva_s.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            xaxis_title="Período",
-            yaxis_title="Avanço Acumulado (%)",
-            yaxis=dict(range=[0, max(100, df_m['Avanco_Fisico_%'].max() * 1.1)]),
-            legend=dict(orientation="h", y=1.1)
-        )
-        st.plotly_chart(fig_curva_s, use_container_width=True, key="fig_curva_s")
-
-        st.markdown("---")
-
-        # 3. Gráfico de Rosca (Distribuição de Custos)
+        # 3. COMPOSIÇÃO / DISTRIBUIÇÃO DE CUSTOS
         st.markdown("### Distribuição de Custos")
         col_g1 = df_c_curr.columns[28] if len(df_c_curr.columns) >= 29 else df_c_curr.columns[0]
         df_pie = df_c_curr.groupby(col_g1)['Vr. Rateio'].sum().reset_index()
@@ -255,7 +279,7 @@ if menu_principal == "Visão geral":
 
 # 2. DADOS DA OBRA
 elif menu_principal == "Dados da obra":
-    st.markdown(f"<h1>{titulo_pagina} - Cadastro</h1>", unsafe_allow_html=True)
+    render_header("Dados da Obra - Cadastro e Detalhes")
     
     col_inf, col_img = st.columns([2, 1])
     
@@ -296,33 +320,11 @@ elif menu_principal == "Dados da obra":
 
 # 3. DRE
 elif menu_principal == "DRE":
-    st.markdown(f"<h1>{titulo_pagina} - DRE</h1>", unsafe_allow_html=True)
+    render_header("DRE - Demonstrativo de Resultado Exercício")
     
-    # Exemplo estimativo de Orçado (calculado como base de contrato/estimativa padrão)
-    orcado_receita = val_contrato
-    orcado_custo_direto = val_contrato * 0.85 if val_contrato > 0 else custo_direto
-    orcado_desp_ind = orcado_receita * 0.02
-    orcado_res_op = orcado_receita - (orcado_custo_direto + orcado_desp_ind)
-
     dre_df = pd.DataFrame({
-        "Conta": [
-            "Receita Bruta (Faturamento)",
-            "Custos Diretos",
-            "Despesas Indiretas (2%)",
-            "Resultado Operacional"
-        ],
-        "Orçado (R$)": [
-            fmt_br(orcado_receita),
-            fmt_br(-orcado_custo_direto),
-            fmt_br(-orcado_desp_ind),
-            fmt_br(orcado_res_op)
-        ],
-        "Realizado (R$)": [
-            fmt_br(fat_bruto),
-            fmt_br(-custo_direto),
-            fmt_br(-custo_indireto),
-            fmt_br(resultado_op)
-        ],
+        "Conta": ["Receita Bruta (Faturamento)", "Custos Diretos", "Despesas Indiretas (2%)", "Resultado Operacional"],
+        "Realizado (R$)": [fmt_br(fat_bruto), fmt_br(-custo_direto), fmt_br(-custo_indireto), fmt_br(resultado_op)],
         "Margem (%)": [
             "100.0%",
             f"{- (custo_direto/fat_bruto*100) if fat_bruto>0 else 0:.1f}%",
@@ -334,7 +336,8 @@ elif menu_principal == "DRE":
 
 # 4. KPIS
 elif menu_principal == "KPIs":
-    st.markdown(f"<h1>{titulo_pagina} - KPIs</h1>", unsafe_allow_html=True)
+    render_header("KPIs - Indicadores de Performance")
+    
     col_k1, col_k2 = st.columns(2)
     with col_k1:
         st.markdown(f'<div class="stCard"><div class="metric-label">CPI (Cost Performance Index)</div><div class="metric-value">{cpi:.2f}</div></div>', unsafe_allow_html=True)
@@ -343,7 +346,7 @@ elif menu_principal == "KPIs":
 
 # 5. CUSTOS
 elif menu_principal == "Custos":
-    st.markdown(f"<h1>{titulo_pagina} - Custos</h1>", unsafe_allow_html=True)
+    render_header("Custos - Análise Detalhada")
     
     col_c1, col_c2 = st.columns([1, 1])
     
