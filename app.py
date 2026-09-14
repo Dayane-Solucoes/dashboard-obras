@@ -17,8 +17,24 @@ st.markdown("""
     
     /* Barra Lateral Azul Escuro */
     [data-testid="stSidebar"] { background-color: #0B132B; color: #FFFFFF; }
-    [data-testid="stSidebar"] * { color: #E2E8F0 !important; }
+    [data-testid="stSidebar"] * { color: #E2E8F0; }
     
+    /* Card do Logo em Fundo Branco (Com !important para sobrescrever o estilo da sidebar) */
+    .logo-container {
+        background-color: #FFFFFF !important;
+        padding: 16px !important;
+        border-radius: 12px !important;
+        text-align: center !important;
+        margin-bottom: 20px !important;
+        display: block !important;
+    }
+    
+    /* Garante que a imagem do logo preencha o container corretamente */
+    .logo-container img {
+        background-color: #FFFFFF !important;
+        border-radius: 8px !important;
+    }
+
     /* Fundo Branco e Texto Escuro para o Selectbox da Obra */
     div[data-baseweb="select"] > div {
         background-color: #FFFFFF !important;
@@ -27,15 +43,6 @@ st.markdown("""
     div[data-baseweb="select"] * {
         color: #0B132B !important;
         font-weight: 600 !important;
-    }
-    
-    /* Card do Logo em Fundo Branco */
-    .logo-container {
-        background-color: #FFFFFF;
-        padding: 12px;
-        border-radius: 10px;
-        text-align: center;
-        margin-bottom: 20px;
     }
 
     /* Cards numéricos */
@@ -96,9 +103,11 @@ except Exception as e:
 # --- BARRA LATERAL (MENU PRINCIPAL) ---
 logo_files = [f for f in os.listdir('.') if f.lower().startswith('logo') and f.lower().endswith(('.png', '.jpg', '.jpeg'))]
 if logo_files:
-    st.sidebar.markdown(f'<div class="logo-container">', unsafe_allow_html=True)
-    st.sidebar.image(logo_files[0], use_container_width=True)
-    st.sidebar.markdown('</div>', unsafe_allow_html=True)
+    st.sidebar.markdown(f'''
+        <div class="logo-container">
+            <img src="data:image/png;base64,{st.image(logo_files[0])}" style="width:100%;">
+        </div>
+    ''', unsafe_allow_html=True)
 
 st.sidebar.markdown("### PORTFÓLIO / OBRAS")
 menu_principal = st.sidebar.radio(
