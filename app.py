@@ -75,6 +75,56 @@ st.markdown("""
     .metric-label { font-size: 0.75rem; font-weight: 600; color: #64748B; text-transform: uppercase; }
     .metric-value { font-size: 1.4rem; font-weight: 700; color: #0F172A; margin-top: 4px; }
     .metric-sub { font-size: 0.75rem; color: #2563EB; margin-top: 2px; }
+
+    /* Estilos do Resumo Financeiro */
+    .resumo-container {
+        background-color: #FFFFFF;
+        border-radius: 10px;
+        padding: 20px;
+        border: 1px solid #E2E8F0;
+        margin-bottom: 25px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+    .resumo-header {
+        color: #3B82F6;
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 15px;
+    }
+    .resumo-title-custo {
+        color: #64748B;
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+    .resumo-val-custo {
+        color: #64748B;
+        font-size: 1.3rem;
+        font-weight: 700;
+        margin-bottom: 15px;
+    }
+    .card-resumo {
+        padding: 6px 0;
+    }
+    .card-resumo-label {
+        font-size: 0.85rem;
+        color: #64748B;
+        font-weight: 500;
+    }
+    .card-resumo-val-green {
+        font-size: 1.15rem;
+        color: #16A34A;
+        font-weight: 700;
+    }
+    .card-resumo-val-red {
+        font-size: 1.15rem;
+        color: #DC2626;
+        font-weight: 700;
+    }
+    .card-resumo-val-blue {
+        font-size: 1.15rem;
+        color: #2563EB;
+        font-weight: 700;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -82,13 +132,13 @@ st.markdown("""
 def fmt_br(valor):
     try:
         if pd.isna(valor) or valor == 0:
-            return "R$ 0"
-        return f"R$ {valor:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            return "R$ 0,00"
+        return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     except:
-        return "R$ 0"
+        return "R$ 0,00"
 
-# 3. Carregamento de Dados
-@st.cache_data
+# 3. Carregamento de Dados (com ttl no cache para atualizar rápido se mudar a planilha)
+@st.cache_data(ttl=600)
 def load_data():
     df_custo = pd.read_excel('BD_Custo.xlsx')
     df_fat = pd.read_excel('BD_Faturamento.xlsx')
@@ -152,6 +202,19 @@ custo_total = custo_direto + custo_indireto
 resultado_op = fat_bruto - custo_total
 cpi = (fat_bruto / custo_direto) if custo_direto > 0 else 1.0
 
+# Variáveis do Orçado (ficarão zeradas se não houver base de orçamento)
+orcado_custo = 0.0
+rec_previsto = 0.0
+desp_previsto = 0.0
+saldo_orcado_previsto = orcado_custo - desp_previsto
+lucro_previsto = rec_previsto - desp_previsto
+
+# Valores do Realizado
+rec_realizado = fat_bruto
+desp_realizado = custo_total
+saldo_orcado_realizado = orcado_custo - desp_realizado
+lucro_realizado = rec_realizado - desp_realizado
+
 # Define metadados da obra para exibição no cabeçalho
 if selected_obra_str != "Todas as Obras":
     nome_obra_display = selected_obra_str
@@ -166,7 +229,6 @@ else:
 
 # 1. VISÃO GERAL
 if menu_principal == "Visão geral":
-    # Cabeçalho da página com Titulo em destaque e Detalhes em fonte menor abaixo
     st.markdown(f"""
     <div>
         <div class="main-title">{nome_obra_display}</div>
@@ -206,7 +268,6 @@ if menu_principal == "Visão geral":
         df_m = pd.merge(f_mes, c_mes, on='Periodo', how='outer').fillna(0).sort_values('Periodo')
         df_m['MesAno'] = df_m['Periodo'].dt.strftime('%m/%Y')
         
-        # Acumulados para a Curva S
         df_m['Fat_Acumulado'] = df_m['Valor Bruto'].cumsum()
         df_m['Custo_Acumulado'] = df_m['Vr. Rateio'].cumsum()
         df_m['Margem'] = np.where(df_m['Valor Bruto'] > 0, ((df_m['Valor Bruto'] - df_m['Vr. Rateio']) / df_m['Valor Bruto']) * 100, 0)
@@ -242,7 +303,7 @@ if menu_principal == "Visão geral":
 
         st.markdown("---")
 
-        # --- 2. SEGUNDO (LOGO ABAIXO): GRÁFICO DE BARRAS MENSAL ---
+        # --- 2. SEGUNDO: GRÁFICO DE BARRAS MENSAL ---
         st.markdown("### Resultado Mensal (Faturado, Custo e Margem)")
         fig_comb = make_subplots(specs=[[{"secondary_y": True}]])
         fig_comb.add_trace(go.Bar(x=df_m['MesAno'], y=df_m['Valor Bruto'], name="Faturado", marker_color='#2563EB'), secondary_y=False)
@@ -256,7 +317,7 @@ if menu_principal == "Visão geral":
 
         st.markdown("---")
 
-        # --- 3. TERCEIRO (ABAIXO DO DE BARRAS): GRÁFICO DE ROSCA ---
+        # --- 3. TERCEIRO: GRÁFICO DE ROSCA ---
         st.markdown("### Composição e Distribuição de Custos")
         col_g1 = df_c_curr.columns[28] if len(df_c_curr.columns) >= 29 else df_c_curr.columns[0]
         df_pie = df_c_curr.groupby(col_g1)['Vr. Rateio'].sum().reset_index()
@@ -265,28 +326,104 @@ if menu_principal == "Visão geral":
         st.plotly_chart(fig_pie, use_container_width=True, key="pie_vg")
 
     elif sub_aba == "Financeiro":
-        st.subheader("Resumo Financeiro da Obra")
-        col_a, col_b = st.columns(2)
-        with col_a:
-            st.markdown(f"""
-            <div class="stCard">
-                <h4>Resumo Financeiro</h4><hr>
-                <p><b>Receita Contratual:</b> {fmt_br(val_contrato)}</p>
-                <p><b>Custos Realizados:</b> {fmt_br(custo_direto)}</p>
-                <p><b>Despesas Indiretas (2%):</b> {fmt_br(custo_indireto)}</p>
-                <p><b>Resultado Acumulado:</b> {fmt_br(resultado_op)}</p>
+        # --- BLOCO DE RESUMO FINANCEIRO (SISTEMA DE CARDS DA IMAGEM) ---
+        st.markdown('<div class="resumo-header">Resumo financeiro</div>', unsafe_allow_html=True)
+        
+        # Orçado (custo)
+        st.markdown(f'''
+        <div style="margin-bottom: 20px;">
+            <div class="resumo-title-custo">Orçado (custo)</div>
+            <div class="resumo-val-custo">{fmt_br(orcado_custo)}</div>
+        </div>
+        ''', unsafe_allow_html=True)
+
+        # Linha 1: Visão Previsto
+        col_r1, col_r2, col_r3, col_r4 = st.columns(4)
+        with col_r1:
+            st.markdown(f'''
+            <div class="card-resumo">
+                <div class="card-resumo-label">Receitas (previsto) 👁️</div>
+                <div class="card-resumo-val-green">{fmt_br(rec_previsto)}</div>
             </div>
-            """, unsafe_allow_html=True)
-        with col_b:
-            st.markdown(f"""
-            <div class="stCard">
-                <h4>DRE - Visão Rápida</h4><hr>
-                <p><b>Receita Líquida (Faturamento):</b> {fmt_br(fat_bruto)}</p>
-                <p><b>Custos Diretos:</b> {fmt_br(custo_direto)}</p>
-                <p><b>Despesas Indiretas:</b> {fmt_br(custo_indireto)}</p>
-                <p><b>Resultado Operacional:</b> {fmt_br(resultado_op)}</p>
+            ''', unsafe_allow_html=True)
+
+        with col_r2:
+            st.markdown(f'''
+            <div class="card-resumo">
+                <div class="card-resumo-label">Despesas (previsto) 👁️</div>
+                <div class="card-resumo-val-red">{fmt_br(desp_previsto)}</div>
             </div>
-            """, unsafe_allow_html=True)
+            ''', unsafe_allow_html=True)
+
+        with col_r3:
+            st.markdown(f'''
+            <div class="card-resumo">
+                <div class="card-resumo-label">Saldo Orçado (previsto) 🛈</div>
+                <div class="card-resumo-val-blue">{fmt_br(saldo_orcado_previsto)}</div>
+            </div>
+            ''', unsafe_allow_html=True)
+
+        with col_r4:
+            st.markdown(f'''
+            <div class="card-resumo">
+                <div class="card-resumo-label">Lucro (previsto) 🛈</div>
+                <div class="card-resumo-val-green">{fmt_br(lucro_previsto)}</div>
+            </div>
+            ''', unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Linha 2: Visão Realizado
+        col_r5, col_r6, col_r7, col_r8 = st.columns(4)
+        with col_r5:
+            st.markdown(f'''
+            <div class="card-resumo">
+                <div class="card-resumo-label">Receitas (realizado) 👁️</div>
+                <div class="card-resumo-val-green">{fmt_br(rec_realizado)}</div>
+            </div>
+            ''', unsafe_allow_html=True)
+
+        with col_r6:
+            st.markdown(f'''
+            <div class="card-resumo">
+                <div class="card-resumo-label">Despesas (realizado) 👁️</div>
+                <div class="card-resumo-val-red">{fmt_br(desp_realizado)}</div>
+            </div>
+            ''', unsafe_allow_html=True)
+
+        with col_r7:
+            st.markdown(f'''
+            <div class="card-resumo">
+                <div class="card-resumo-label">Saldo Orçado (realizado) 🛈</div>
+                <div class="card-resumo-val-blue">{fmt_br(saldo_orcado_realizado)}</div>
+            </div>
+            ''', unsafe_allow_html=True)
+
+        with col_r8:
+            st.markdown(f'''
+            <div class="card-resumo">
+                <div class="card-resumo-label">Lucro (realizado) 🛈</div>
+                <div class="card-resumo-val-green">{fmt_br(lucro_realizado)}</div>
+            </div>
+            ''', unsafe_allow_html=True)
+
+        st.markdown("---")
+
+        # --- DRE RESUMIDA LOGO ABAIXO ---
+        st.subheader("DRE - Visão Financeira Resumida")
+        
+        dre_resumo_df = pd.DataFrame({
+            "Descrição": ["Receita Bruta (Faturamento)", "Custos Diretos", "Despesas Indiretas (2%)", "Resultado Operacional"],
+            "Orçado / Previsto (R$)": [fmt_br(rec_previsto), fmt_br(-desp_previsto), "R$ 0,00", fmt_br(lucro_previsto)],
+            "Realizado (R$)": [fmt_br(fat_bruto), fmt_br(-custo_direto), fmt_br(-custo_indireto), fmt_br(resultado_op)],
+            "Margem Realizada (%)": [
+                "100,0%",
+                f"{- (custo_direto/fat_bruto*100) if fat_bruto>0 else 0:.1f}%".replace(".", ","),
+                "-2,0%",
+                f"{(resultado_op/fat_bruto*100) if fat_bruto>0 else 0:.1f}%".replace(".", ",")
+            ]
+        })
+        st.dataframe(dre_resumo_df, use_container_width=True, hide_index=True)
 
 # 2. DADOS DA OBRA
 elif menu_principal == "Dados da obra":
@@ -347,13 +484,6 @@ elif menu_principal == "DRE":
     </div>
     """, unsafe_allow_html=True)
     
-    # Valores do Orçado (Base zerada/padrão aguardando a inclusão da nova base de orçamento)
-    orc_rec_bruta = val_contrato
-    orc_custo_direto = val_contrato * 0.80
-    orc_desp_indireta = val_contrato * 0.02
-    orc_res_op = orc_rec_bruta - orc_custo_direto - orc_desp_indireta
-
-    # Montagem da tabela DRE com as colunas solicitadas: Orçado, Realizado e Margem Realizada
     dre_df = pd.DataFrame({
         "Conta DRE": [
             "Receita Bruta (Faturamento)", 
@@ -362,10 +492,10 @@ elif menu_principal == "DRE":
             "Resultado Operacional"
         ],
         "Orçado (R$)": [
-            fmt_br(orc_rec_bruta), 
-            fmt_br(-orc_custo_direto), 
-            fmt_br(-orc_desp_indireta), 
-            fmt_br(orc_res_op)
+            fmt_br(0), 
+            fmt_br(0), 
+            fmt_br(0), 
+            fmt_br(0)
         ],
         "Realizado (R$)": [
             fmt_br(fat_bruto), 
