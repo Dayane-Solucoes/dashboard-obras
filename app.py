@@ -118,7 +118,7 @@ def fmt_br(valor):
     except:
         return "R$ 0,00"
 
-# 3. Carregamento de Dados (com ttl no cache para atualizar rápido se mudar a planilha)
+# 3. Carregamento de Dados
 @st.cache_data(ttl=600)
 def load_data():
     df_custo = pd.read_excel('BD_Custo.xlsx')
@@ -183,17 +183,35 @@ custo_total = custo_direto + custo_indireto
 resultado_op = fat_bruto - custo_total
 cpi = (fat_bruto / custo_direto) if custo_direto > 0 else 1.0
 
-# Variáveis do Orçado (ficarão zeradas se não houver base de orçamento)
-orcado_custo = 0.0
-rec_previsto = 0.0
-desp_previsto = 0.0
-saldo_orcado_previsto = orcado_custo - desp_previsto
+# --- EXTRAÇÃO DO PREVISTO (DA PLANILHA CONTRATOS) ---
+# Receita Prevista = Valor Final Contratual
+rec_previsto = float(val_contrato)
+
+# Despesa Prevista / Custo Previsto
+col_custo_previsto = None
+possiveis_colunas = ['Custo Previsto', 'Valor Previsto', 'Orcamento', 'Orcado', 'Custo Orçado', 'Custo Orcado', 'Valor Orçado']
+
+for col in df_cont_curr.columns:
+    if str(col).strip().lower() in [p.lower() for p in possiveis_colunas]:
+        col_custo_previsto = col
+        break
+
+if col_custo_previsto and col_custo_previsto in df_cont_curr:
+    desp_previsto = float(df_cont_curr[col_custo_previsto].sum(min_count=1))
+    if pd.isna(desp_previsto):
+        desp_previsto = 0.0
+else:
+    desp_previsto = 0.0
+
+# Cálculos da Visão Previsto
+orcado_custo = desp_previsto
+saldo_orcado_previsto = rec_previsto - desp_previsto
 resultado_previsto = rec_previsto - desp_previsto
 
-# Valores do Realizado
+# Cálculos da Visão Realizado
 rec_realizado = fat_bruto
 desp_realizado = custo_total
-saldo_orcado_realizado = orcado_custo - desp_realizado
+saldo_orcado_realizado = rec_previsto - desp_realizado
 resultado_realizado = rec_realizado - desp_realizado
 
 # Define metadados da obra para exibição no cabeçalho
@@ -469,10 +487,10 @@ elif menu_principal == "DRE":
             "Resultado Operacional"
         ],
         "Orçado (R$)": [
+            fmt_br(rec_previsto), 
+            fmt_br(-desp_previsto), 
             fmt_br(0), 
-            fmt_br(0), 
-            fmt_br(0), 
-            fmt_br(0)
+            fmt_br(resultado_previsto)
         ],
         "Realizado (R$)": [
             fmt_br(fat_bruto), 
