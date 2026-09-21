@@ -77,28 +77,9 @@ st.markdown("""
     .metric-sub { font-size: 0.75rem; color: #2563EB; margin-top: 2px; }
 
     /* Estilos do Resumo Financeiro */
-    .resumo-container {
-        background-color: #FFFFFF;
-        border-radius: 10px;
-        padding: 20px;
-        border: 1px solid #E2E8F0;
-        margin-bottom: 25px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-    }
     .resumo-header {
         color: #3B82F6;
         font-size: 1.5rem;
-        font-weight: 700;
-        margin-bottom: 15px;
-    }
-    .resumo-title-custo {
-        color: #64748B;
-        font-size: 0.9rem;
-        font-weight: 600;
-    }
-    .resumo-val-custo {
-        color: #64748B;
-        font-size: 1.3rem;
         font-weight: 700;
         margin-bottom: 15px;
     }
@@ -207,13 +188,13 @@ orcado_custo = 0.0
 rec_previsto = 0.0
 desp_previsto = 0.0
 saldo_orcado_previsto = orcado_custo - desp_previsto
-lucro_previsto = rec_previsto - desp_previsto
+resultado_previsto = rec_previsto - desp_previsto
 
 # Valores do Realizado
 rec_realizado = fat_bruto
 desp_realizado = custo_total
 saldo_orcado_realizado = orcado_custo - desp_realizado
-lucro_realizado = rec_realizado - desp_realizado
+resultado_realizado = rec_realizado - desp_realizado
 
 # Define metadados da obra para exibição no cabeçalho
 if selected_obra_str != "Todas as Obras":
@@ -326,23 +307,19 @@ if menu_principal == "Visão geral":
         st.plotly_chart(fig_pie, use_container_width=True, key="pie_vg")
 
     elif sub_aba == "Financeiro":
-        # --- BLOCO DE RESUMO FINANCEIRO (SISTEMA DE CARDS DA IMAGEM) ---
+        # --- BLOCO DE RESUMO FINANCEIRO ---
         st.markdown('<div class="resumo-header">Resumo financeiro</div>', unsafe_allow_html=True)
-        
-        # Orçado (custo)
-        st.markdown(f'''
-        <div style="margin-bottom: 20px;">
-            <div class="resumo-title-custo">Orçado (custo)</div>
-            <div class="resumo-val-custo">{fmt_br(orcado_custo)}</div>
-        </div>
-        ''', unsafe_allow_html=True)
+
+        # Definição das cores dinâmicas para os resultados (Verde se >= 0, Vermelho se < 0)
+        classe_res_previsto = "card-resumo-val-red" if resultado_previsto < 0 else "card-resumo-val-green"
+        classe_res_realizado = "card-resumo-val-red" if resultado_realizado < 0 else "card-resumo-val-green"
 
         # Linha 1: Visão Previsto
         col_r1, col_r2, col_r3, col_r4 = st.columns(4)
         with col_r1:
             st.markdown(f'''
             <div class="card-resumo">
-                <div class="card-resumo-label">Receitas (previsto) 👁️</div>
+                <div class="card-resumo-label">Receitas (previsto)</div>
                 <div class="card-resumo-val-green">{fmt_br(rec_previsto)}</div>
             </div>
             ''', unsafe_allow_html=True)
@@ -350,7 +327,7 @@ if menu_principal == "Visão geral":
         with col_r2:
             st.markdown(f'''
             <div class="card-resumo">
-                <div class="card-resumo-label">Despesas (previsto) 👁️</div>
+                <div class="card-resumo-label">Despesas (previsto)</div>
                 <div class="card-resumo-val-red">{fmt_br(desp_previsto)}</div>
             </div>
             ''', unsafe_allow_html=True)
@@ -358,7 +335,7 @@ if menu_principal == "Visão geral":
         with col_r3:
             st.markdown(f'''
             <div class="card-resumo">
-                <div class="card-resumo-label">Saldo Orçado (previsto) 🛈</div>
+                <div class="card-resumo-label">Saldo Orçado (previsto)</div>
                 <div class="card-resumo-val-blue">{fmt_br(saldo_orcado_previsto)}</div>
             </div>
             ''', unsafe_allow_html=True)
@@ -366,8 +343,8 @@ if menu_principal == "Visão geral":
         with col_r4:
             st.markdown(f'''
             <div class="card-resumo">
-                <div class="card-resumo-label">Lucro (previsto) 🛈</div>
-                <div class="card-resumo-val-green">{fmt_br(lucro_previsto)}</div>
+                <div class="card-resumo-label">Resultado (previsto)</div>
+                <div class="{classe_res_previsto}">{fmt_br(resultado_previsto)}</div>
             </div>
             ''', unsafe_allow_html=True)
 
@@ -378,7 +355,7 @@ if menu_principal == "Visão geral":
         with col_r5:
             st.markdown(f'''
             <div class="card-resumo">
-                <div class="card-resumo-label">Receitas (realizado) 👁️</div>
+                <div class="card-resumo-label">Receitas (realizado)</div>
                 <div class="card-resumo-val-green">{fmt_br(rec_realizado)}</div>
             </div>
             ''', unsafe_allow_html=True)
@@ -386,7 +363,7 @@ if menu_principal == "Visão geral":
         with col_r6:
             st.markdown(f'''
             <div class="card-resumo">
-                <div class="card-resumo-label">Despesas (realizado) 👁️</div>
+                <div class="card-resumo-label">Despesas (realizado)</div>
                 <div class="card-resumo-val-red">{fmt_br(desp_realizado)}</div>
             </div>
             ''', unsafe_allow_html=True)
@@ -394,7 +371,7 @@ if menu_principal == "Visão geral":
         with col_r7:
             st.markdown(f'''
             <div class="card-resumo">
-                <div class="card-resumo-label">Saldo Orçado (realizado) 🛈</div>
+                <div class="card-resumo-label">Saldo Orçado (realizado)</div>
                 <div class="card-resumo-val-blue">{fmt_br(saldo_orcado_realizado)}</div>
             </div>
             ''', unsafe_allow_html=True)
@@ -402,8 +379,8 @@ if menu_principal == "Visão geral":
         with col_r8:
             st.markdown(f'''
             <div class="card-resumo">
-                <div class="card-resumo-label">Lucro (realizado) 🛈</div>
-                <div class="card-resumo-val-green">{fmt_br(lucro_realizado)}</div>
+                <div class="card-resumo-label">Resultado (realizado)</div>
+                <div class="{classe_res_realizado}">{fmt_br(resultado_realizado)}</div>
             </div>
             ''', unsafe_allow_html=True)
 
@@ -414,7 +391,7 @@ if menu_principal == "Visão geral":
         
         dre_resumo_df = pd.DataFrame({
             "Descrição": ["Receita Bruta (Faturamento)", "Custos Diretos", "Despesas Indiretas (2%)", "Resultado Operacional"],
-            "Orçado / Previsto (R$)": [fmt_br(rec_previsto), fmt_br(-desp_previsto), "R$ 0,00", fmt_br(lucro_previsto)],
+            "Orçado / Previsto (R$)": [fmt_br(rec_previsto), fmt_br(-desp_previsto), "R$ 0,00", fmt_br(resultado_previsto)],
             "Realizado (R$)": [fmt_br(fat_bruto), fmt_br(-custo_direto), fmt_br(-custo_indireto), fmt_br(resultado_op)],
             "Margem Realizada (%)": [
                 "100,0%",
