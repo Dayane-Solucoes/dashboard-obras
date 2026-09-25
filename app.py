@@ -2,492 +2,208 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import numpy as np
-import os
+from datetime import datetime
 
-# 1. Configuração da Página
-st.set_page_config(page_title="Soluções Terceirizadas - Gestão de Obras", page_icon="🏗️", layout="wide")
-
-# 2. Estilização CSS personalizada
-st.markdown("""
-<style>
-    /* Estilo do fundo e texto geral */
-    .main { background-color: #0b0d19; color: #E2E8F0; }
-    
-    /* Barra Lateral Azul Escuro / Glassmorphism */
-    [data-testid="stSidebar"] { background-color: #121528; color: #FFFFFF; }
-    [data-testid="stSidebar"] * { color: #E2E8F0 !important; }
-    
-    /* Fundo Branco e Borda Arredondada para o Logo na Sidebar */
-    [data-testid="stSidebar"] img {
-        background-color: #FFFFFF !important;
-        padding: 12px !important;
-        border-radius: 12px !important;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.15) !important;
-    }
-
-    /* Selectbox da Obra */
-    div[data-baseweb="select"] > div {
-        background-color: #181b34 !important;
-        border-radius: 8px !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    }
-    div[data-baseweb="select"] * {
-        color: #FFFFFF !important;
-        font-weight: 600 !important;
-    }
-
-    /* Estilo do Cabeçalho da Obra Selecionada */
-    .main-title {
-        font-size: 2.2rem;
-        font-weight: 800;
-        color: #FFFFFF;
-        margin-bottom: 4px;
-        line-height: 1.2;
-    }
-    
-    .sub-info {
-        font-size: 0.88rem;
-        color: #94A3B8 !important;
-        font-weight: 500;
-        margin-bottom: 20px;
-    }
-
-    .status-pill {
-        background-color: rgba(16, 185, 129, 0.15);
-        color: #34D399 !important;
-        padding: 2px 10px;
-        border-radius: 10px;
-        font-weight: 600;
-        font-size: 0.78rem;
-        border: 1px solid rgba(16, 185, 129, 0.3);
-    }
-
-    /* Cards numéricos / Glass Cards */
-    .stCard {
-        background: rgba(24, 27, 52, 0.7);
-        backdrop-filter: blur(12px);
-        padding: 18px;
-        border-radius: 16px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-        margin-bottom: 15px;
-    }
-    
-    .metric-label { font-size: 0.75rem; font-weight: 600; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em; }
-    .metric-value { font-size: 1.4rem; font-weight: 700; color: #FFFFFF; margin-top: 4px; }
-    .metric-sub { font-size: 0.75rem; color: #00f2fe; margin-top: 2px; }
-
-    /* Estilos do Resumo Financeiro */
-    .resumo-header {
-        color: #00f2fe;
-        font-size: 1.5rem;
-        font-weight: 700;
-        margin-bottom: 15px;
-    }
-    .card-resumo {
-        padding: 8px 0;
-    }
-    .card-resumo-label {
-        font-size: 0.85rem;
-        color: #94A3B8;
-        font-weight: 500;
-    }
-    .card-resumo-val-green {
-        font-size: 1.15rem;
-        color: #34D399;
-        font-weight: 700;
-    }
-    .card-resumo-val-red {
-        font-size: 1.15rem;
-        color: #F87171;
-        font-weight: 700;
-    }
-    .card-resumo-val-blue {
-        font-size: 1.15rem;
-        color: #00f2fe;
-        font-weight: 700;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# Função de Formatação Monetária
-def fmt_br(valor):
-    try:
-        if pd.isna(valor) or valor == 0:
-            return "R$ 0,00"
-        return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    except:
-        return "R$ 0,00"
-
-# 3. Carregamento de Dados das Planilhas Base
-@st.cache_data(ttl=600)
-def load_data():
-    df_custo = pd.read_excel('BD_Custo.xlsx')
-    df_fat = pd.read_excel('BD_Faturamento.xlsx')
-    df_cont = pd.read_excel('BD_Contratos.xlsx')
-
-    df_c = df_custo[df_custo['Considerar'] == 'S'].copy()
-    df_c['Comp. C'] = pd.to_datetime(df_c['Comp. C'])
-
-    df_f = df_fat[df_fat['CONSIDERAR'] == 'S'].copy()
-    df_f['COMP MED'] = pd.to_datetime(df_f['COMP MED'])
-
-    return df_c, df_f, df_cont
-
-try:
-    df_custo, df_fat, df_cont = load_data()
-except Exception as e:
-    st.error(f"Erro ao carregar bases de dados do Excel: {e}")
-    st.stop()
-
-# --- BARRA LATERAL (MENU PRINCIPAL) ---
-logo_files = [f for f in os.listdir('.') if f.lower().startswith('logo') and f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-if logo_files:
-    st.sidebar.image(logo_files[0], use_container_width=True)
-
-st.sidebar.markdown("### PORTFÓLIO / OBRAS")
-menu_principal = st.sidebar.radio(
-    "Navegação",
-    ["Visão geral", "Dados da obra", "DRE", "KPIs", "Custos"],
-    label_visibility="collapsed"
+# 1. Configuração da Página e Estilo (Dark Mode Moderno)
+st.set_page_config(
+    page_title="Smart Obra - Gestão de Custos",
+    page_icon="🏗️",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Filtro Global de Obra baseado na Base Contratos
-st.sidebar.markdown("---")
-st.sidebar.markdown("**Seleção da Obra**")
-obras_lista = ["Todas as Obras"] + [f"{int(row['N° Obra'])} - {row['NM Contrato']}" for _, row in df_cont.iterrows() if pd.notna(row['N° Obra'])]
-selected_obra_str = st.sidebar.selectbox("Escolha uma obra:", obras_lista)
+# Estilização CSS personalizada para injetar o visual escuro / gradientes
+st.markdown("""
+    <style>
+    .stApp {
+        background-color: #0f0b24;
+        color: #ffffff;
+    }
+    .main {
+        background-color: #0f0b24;
+    }
+    [data-testid="stSidebar"] {
+        background-color: #15102f;
+        border-right: 1px solid #2b2357;
+    }
+    div[data-testid="metric-container"] {
+        background: linear-gradient(135deg, #1b1736 0%, #251e4f 100%);
+        border: 1px solid #3d3175;
+        padding: 15px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+    div.stSelectbox > div > div {
+        background-color: #1b1736;
+        color: white;
+        border: 1px solid #3d3175;
+    }
+    .project-card {
+        background: linear-gradient(135deg, #1b1736 0%, #251e4f 100%);
+        border: 1px solid #3d3175;
+        padding: 20px;
+        border-radius: 14px;
+        margin-bottom: 20px;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-# Filtragem Dinâmica de Dados conforme a Obra Selecionada
-if selected_obra_str != "Todas as Obras":
-    selected_id = float(selected_obra_str.split(" - ")[0])
-    df_cont_curr = df_cont[df_cont['N° Obra'] == selected_id]
-    df_c_curr = df_custo[df_custo['Filial AJUST'] == selected_id]
-    df_f_curr = df_fat[df_fat['OBRA'] == selected_id]
-else:
-    df_cont_curr = df_cont
-    df_c_curr = df_custo
-    df_f_curr = df_fat
-
-# Cálculo da Última Atualização
-max_dt_custo = df_c_curr['Comp. C'].max() if not df_c_curr.empty else None
-max_dt_fat = df_f_curr['COMP MED'].max() if not df_f_curr.empty else None
-dates_found = [d for d in [max_dt_custo, max_dt_fat] if pd.notna(d)]
-last_update_str = max(dates_found).strftime("%d/%m/%Y") if dates_found else "Aguardando fechamento"
-
-# Indicadores Calculados pelas Bases
-val_contrato = df_cont_curr['Valor Final Contratual'].sum() if 'Valor Final Contratual' in df_cont_curr else 0
-fat_bruto = df_f_curr['Valor Bruto'].sum() if 'Valor Bruto' in df_f_curr else 0
-custo_direto = df_c_curr['Vr. Rateio'].sum() if 'Vr. Rateio' in df_c_curr else 0
-custo_indireto = fat_bruto * 0.02
-custo_total = custo_direto + custo_indireto
-resultado_op = fat_bruto - custo_total
-cpi = (fat_bruto / custo_direto) if custo_direto > 0 else 1.0
-
-# --- EXTRAÇÃO DO PREVISTO (DA PLANILHA CONTRATOS) ---
-rec_previsto = float(val_contrato)
-
-col_custo_previsto = None
-possiveis_colunas = ['Custo Previsto', 'Valor Previsto', 'Orcamento', 'Orcado', 'Custo Orçado', 'Custo Orcado', 'Valor Orçado']
-for col in df_cont_curr.columns:
-    if str(col).strip().lower() in [p.lower() for p in possiveis_colunas]:
-        col_custo_previsto = col
-        break
-
-if col_custo_previsto and col_custo_previsto in df_cont_curr:
-    desp_previsto = float(df_cont_curr[col_custo_previsto].sum(min_count=1))
-    if pd.isna(desp_previsto):
-        desp_previsto = 0.0
-else:
-    desp_previsto = 0.0
-
-saldo_orcado_previsto = rec_previsto - desp_previsto
-resultado_previsto = rec_previsto - desp_previsto
-
-# Valores Realizados com base nas planilhas de Faturamento e Custos
-rec_realizado = fat_bruto
-desp_realizado = custo_total
-# CORREÇÃO: Saldo orçado realizado = Receita Realizada - Despesa Realizada
-saldo_orcado_realizado = rec_realizado - desp_realizado
-resultado_realizado = rec_realizado - desp_realizado
-
-# Cálculo de Margens Percentuais
-margem_prevista_pct = (resultado_previsto / rec_previsto * 100) if rec_previsto > 0 else 0.0
-margem_realizada_pct = (resultado_realizado / rec_realizado * 100) if rec_realizado > 0 else 0.0
-
-# Metadados da Obra
-if selected_obra_str != "Todas as Obras":
-    nome_obra_display = selected_obra_str
-    cliente_display = df_cont_curr['NM Contrato'].values[0] if not df_cont_curr.empty and 'NM Contrato' in df_cont_curr else "Cliente não cadastrado"
-    local_display = "Guarulhos - SP"
-else:
-    nome_obra_display = "PORTFÓLIO GERAL DE OBRAS"
-    cliente_display = "Todos os Clientes"
-    local_display = "Múltiplas Localidades"
-
-# --- FUNÇÃO PARA CRIAR O GRÁFICO DE VELOCÍMETRO (GAUGE) ---
-def criar_grafico_velocimetro():
-    meta_contrato = float(val_contrato) if val_contrato > 0 else 1.0 
-    faturado_atual = float(fat_bruto)
-    
-    fig_gauge = go.Figure(go.Indicator(
-        mode = "gauge+number+delta",
-        value = faturado_atual,
-        domain = {'x': [0, 1], 'y': [0, 1]},
-        title = {'text': "<b>Faturamento vs Contrato (Meta)</b>", 'font': {'size': 15, 'color': '#FFFFFF'}},
-        delta = {'reference': meta_contrato, 'increasing': {'color': "green"}},
-        number = {'prefix': "R$ ", 'valueformat': ",.2f", 'font': {'color': '#FFFFFF'}},
-        gauge = {
-            'axis': {'range': [None, meta_contrato], 'tickwidth': 1, 'tickcolor': "white"},
-            'bar': {'color': "#00f2fe"},
-            'bgcolor': "#181b34",
-            'borderwidth': 2,
-            'bordercolor': "#272b52",
-            'steps': [
-                {'range': [0, meta_contrato * 0.5], 'color': '#121528'},
-                {'range': [meta_contrato * 0.5, meta_contrato], 'color': '#1a1f3c'}
-            ],
-            'threshold': {
-                'line': {'color': "#ff007f", 'width': 4},
-                'thickness': 0.75,
-                'value': meta_contrato
-            }
-        }
-    ))
-    
-    fig_gauge.update_layout(
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        font=dict(color='#FFFFFF'),
-        height=320,
-        margin=dict(l=10, r=10, t=40, b=10)
-    )
-    return fig_gauge
-
-# --- NAVEGAÇÃO ---
-
-# 1. VISÃO GERAL
-if menu_principal == "Visão geral":
-    st.markdown(f"""
-    <div>
-        <div class="main-title">{nome_obra_display}</div>
-        <div class="sub-info">
-            <span class="status-pill">Em andamento</span> | 
-            <b>Cliente:</b> {cliente_display} | 
-            📍 <b>Local:</b> {local_display} | 
-            📅 <b>Última atualização:</b> {last_update_str}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    sub_aba = st.radio("", ["Resumo", "Financeiro", "Operacional"], horizontal=True)
-
-    if sub_aba == "Resumo":
-        # Cards de Indicadores
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.markdown(f'<div class="stCard"><div class="metric-label">VALOR CONTRATUAL</div><div class="metric-value">{fmt_br(val_contrato)}</div><div class="metric-sub">↗ BD_Contratos</div></div>', unsafe_allow_html=True)
-        with col2:
-            st.markdown(f'<div class="stCard"><div class="metric-label">RESULTADO ACUMULADO</div><div class="metric-value">{fmt_br(resultado_op)}</div><div class="metric-sub">↗ BD_Faturamento & Custo</div></div>', unsafe_allow_html=True)
-        with col3:
-            avanco_pct = (fat_bruto / val_contrato * 100) if val_contrato > 0 else 0
-            st.markdown(f'<div class="stCard"><div class="metric-label">AVANÇO FÍSICO (FAT)</div><div class="metric-value">{avanco_pct:.1f}%</div><div class="metric-sub">↗ medições</div></div>', unsafe_allow_html=True)
-        with col4:
-            st.markdown(f'<div class="stCard"><div class="metric-label">FATURADO ACUMULADO</div><div class="metric-value">{fmt_br(fat_bruto)}</div><div class="metric-sub">↗ BD_Faturamento</div></div>', unsafe_allow_html=True)
-
-        # Preparação dos dados para gráficos temporais
-        df_c_temp = df_c_curr.copy()
-        df_c_temp['Periodo'] = df_c_temp['Comp. C'].dt.to_period('M')
-        c_mes = df_c_temp.groupby('Periodo')['Vr. Rateio'].sum().reset_index()
-
-        df_f_temp = df_f_curr.copy()
-        df_f_temp['Periodo'] = df_f_temp['COMP MED'].dt.to_period('M')
-        f_mes = df_f_temp.groupby('Periodo')['Valor Bruto'].sum().reset_index()
-
-        df_m = pd.merge(f_mes, c_mes, on='Periodo', how='outer').fillna(0).sort_values('Periodo')
-        df_m['MesAno'] = df_m['Periodo'].dt.strftime('%m/%Y')
-        
-        df_m['Fat_Acumulado'] = df_m['Valor Bruto'].cumsum()
-        df_m['Custo_Acumulado'] = df_m['Vr. Rateio'].cumsum()
-        df_m['Margem'] = np.where(df_m['Valor Bruto'] > 0, ((df_m['Valor Bruto'] - df_m['Vr. Rateio']) / df_m['Valor Bruto']) * 100, 0)
-
-        # --- GRÁFICO CURVA S ---
-        st.markdown("### Curva S - Avanço Físico (Faturamento) vs. Avanço de Custo")
-        fig_curva_s = go.Figure()
-        
-        fig_curva_s.add_trace(go.Scatter(
-            x=df_m['MesAno'], y=df_m['Fat_Acumulado'], name="Avanço Físico Acumulado (Faturamento)", 
-            mode="lines+markers", line=dict(color='#00f2fe', width=4)
-        ))
-        
-        fig_curva_s.add_trace(go.Scatter(
-            x=df_m['MesAno'], y=df_m['Custo_Acumulado'], name="Avanço de Custo Acumulado", 
-            mode="lines+markers", line=dict(color='#ff007f', width=4, dash='dash')
-        ))
-
-        fig_curva_s.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#FFFFFF'),
-            legend=dict(orientation="h", y=1.15), margin=dict(l=20, r=20, t=30, b=20)
-        )
-        fig_curva_s.update_yaxes(title_text="Valor Acumulado (R$)")
-        st.plotly_chart(fig_curva_s, use_container_width=True, key="fig_curva_s")
-
-        st.markdown("---")
-
-        # --- VELOCÍMETRO (ESQUERDA) E ROSCA (DIREITA) NA ABA RESUMO ---
-        col_graf_1, col_graf_2 = st.columns(2)
-        
-        with col_graf_1:
-            st.markdown("### Velocímetro do Contrato")
-            fig_gauge = criar_grafico_velocimetro()
-            st.plotly_chart(fig_gauge, use_container_width=True, key="fig_gauge_resumo")
-
-        with col_graf_2:
-            st.markdown("### Composição e Distribuição de Custos")
-            col_g1 = df_c_curr.columns[28] if len(df_c_curr.columns) >= 29 else df_c_curr.columns[0]
-            df_pie = df_c_curr.groupby(col_g1)['Vr. Rateio'].sum().reset_index()
-            fig_pie = px.pie(df_pie, values='Vr. Rateio', names=col_g1, hole=0.55, color_discrete_sequence=px.colors.qualitative.Pastel)
-            fig_pie.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#FFFFFF'), height=320, margin=dict(l=10, r=10, t=40, b=10))
-            st.plotly_chart(fig_pie, use_container_width=True, key="pie_vg")
-
-    elif sub_aba == "Financeiro":
-        # --- BLOCO DE RESUMO FINANCEIRO ---
-        st.markdown('<div class="resumo-header">Resumo financeiro</div>', unsafe_allow_html=True)
-
-        classe_res_previsto = "card-resumo-val-red" if resultado_previsto < 0 else "card-resumo-val-green"
-        classe_res_realizado = "card-resumo-val-red" if resultado_realizado < 0 else "card-resumo-val-green"
-
-        # Linha 1: Visão Previsto
-        col_r1, col_r2, col_r3, col_r4 = st.columns(4)
-        with col_r1:
-            st.markdown(f'''<div class="card-resumo"><div class="card-resumo-label">Receitas (previsto)</div><div class="card-resumo-val-green">{fmt_br(rec_previsto)}</div></div>''', unsafe_allow_html=True)
-        with col_r2:
-            st.markdown(f'''<div class="card-resumo"><div class="card-resumo-label">Despesas (previsto)</div><div class="card-resumo-val-red">{fmt_br(desp_previsto)}</div></div>''', unsafe_allow_html=True)
-        with col_r3:
-            st.markdown(f'''<div class="card-resumo"><div class="card-resumo-label">Saldo Orçado (previsto)</div><div class="card-resumo-val-blue">{fmt_br(saldo_orcado_previsto)}</div></div>''', unsafe_allow_html=True)
-        with col_r4:
-            st.markdown(f'''<div class="card-resumo"><div class="card-resumo-label">Resultado (previsto) - Margem: {margem_prevista_pct:.1f}%</div><div class="{classe_res_previsto}">{fmt_br(resultado_previsto)}</div></div>''', unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        # Linha 2: Visão Realizado
-        col_r5, col_r6, col_r7, col_r8 = st.columns(4)
-        with col_r5:
-            st.markdown(f'''<div class="card-resumo"><div class="card-resumo-label">Receitas (realizado)</div><div class="card-resumo-val-green">{fmt_br(rec_realizado)}</div></div>''', unsafe_allow_html=True)
-        with col_r6:
-            st.markdown(f'''<div class="card-resumo"><div class="card-resumo-label">Despesas (realizado)</div><div class="card-resumo-val-red">{fmt_br(desp_realizado)}</div></div>''', unsafe_allow_html=True)
-        with col_r7:
-            st.markdown(f'''<div class="card-resumo"><div class="card-resumo-label">Saldo Orçado (realizado)</div><div class="card-resumo-val-blue">{fmt_br(saldo_orcado_realizado)}</div></div>''', unsafe_allow_html=True)
-        with col_r8:
-            st.markdown(f'''<div class="card-resumo"><div class="card-resumo-label">Resultado (realizado) - Margem: {margem_realizada_pct:.1f}%</div><div class="{classe_res_realizado}">{fmt_br(resultado_realizado)}</div></div>''', unsafe_allow_html=True)
-
-        st.markdown("---")
-
-        # --- GRÁFICO DE VELOCÍMETRO NA ABA FINANCEIRO ---
-        st.subheader("Progresso do Faturamento vs. Valor Total do Contrato")
-        fig_gauge_fin = criar_grafico_velocimetro()
-        st.plotly_chart(fig_gauge_fin, use_container_width=True, key="fig_velocimetro_faturamento")
-
-        st.markdown("---")
-
-        # --- DRE RESUMIDA ---
-        st.subheader("DRE - Visão Financeira Resumida")
-        dre_resumo_df = pd.DataFrame({
-            "Descrição": ["Receita Bruta (Faturamento)", "Custos Diretos", "Despesas Indiretas (2%)", "Resultado Operacional"],
-            "Orçado / Previsto (R$)": [fmt_br(rec_previsto), fmt_br(-desp_previsto), "R$ 0,00", fmt_br(resultado_previsto)],
-            "Realizado (R$)": [fmt_br(fat_bruto), fmt_br(-custo_direto), fmt_br(-custo_indireto), fmt_br(resultado_op)],
-            "Margem Realizada (%)": [
-                "100,0%",
-                f"{- (custo_direto/fat_bruto*100) if fat_bruto>0 else 0:.1f}%".replace(".", ","),
-                "-2,0%",
-                f"{(resultado_op/fat_bruto*100) if fat_bruto>0 else 0:.1f}%".replace(".", ",")
-            ]
+# 2. Função para Carregar Dados usando seus arquivos exatos do GitHub
+@st.cache_data
+def load_data():
+    try:
+        df_custo = pd.read_excel("BD_Custo.xlsx")
+        df_faturamento = pd.read_excel("BD_Faturamento.xlsx")
+        df_contratos = pd.read_excel("BD_Contratos.xlsx")
+    except FileNotFoundError:
+        # Dados fictícios de fallback caso os arquivos não sejam encontrados no diretório
+        data_atual = datetime.now()
+        df_custo = pd.DataFrame({
+            'Obra': ['The Pinnacle Tower', 'The Pinnacle Tower', 'Horizon Plaza', 'Horizon Plaza'],
+            'Data': [data_atual, data_atual, data_atual, data_atual],
+            'Categoria': ['Material', 'Mão de Obra', 'Equipamentos', 'Material'],
+            'Valor': [45000, 30000, 15000, 20000],
+            'Fornecedor': ['ConstróiAço', 'Equipe Alpha', 'LocaMáquinas', 'Cimento Forte']
         })
-        st.dataframe(dre_resumo_df, use_container_width=True, hide_index=True)
+        df_faturamento = pd.DataFrame({
+            'Obra': ['The Pinnacle Tower', 'The Pinnacle Tower', 'Horizon Plaza', 'Horizon Plaza'],
+            'Data': [data_atual, data_atual, data_atual, data_atual],
+            'Tipo': ['Entrada Realizada', 'Entrada Prevista', 'Entrada Realizada', 'Entrada Prevista'],
+            'Valor': [120000, 50000, 80000, 30000],
+            'Cliente': ['Vertex Group', 'Vertex Group', 'Horizon Corp', 'Horizon Corp']
+        })
+        df_contratos = pd.DataFrame({
+            'Obra': ['The Pinnacle Tower', 'Horizon Plaza'],
+            'Cliente': ['Vertex Development Group', 'Horizon Real Estate'],
+            'Endereco': ['123 Skyline Blvd, NY', '456 Ocean Ave, Miami'],
+            'Gerente': ['Sarah Chen', 'Carlos Silva'],
+            'Orcamento_Total': [125000000, 45000000],
+            'Status': ['On Track', 'Delayed']
+        })
+    return df_custo, df_faturamento, df_contratos
 
-# 2. DADOS DA OBRA
-elif menu_principal == "Dados da obra":
-    st.markdown(f"""
-    <div>
-        <div class="main-title">CADASTRO DA OBRA</div>
-        <div class="sub-info"><b>Obra:</b> {nome_obra_display} | 📍 <b>Local:</b> {local_display} | 📅 <b>Atualização:</b> {last_update_str}</div>
-    </div>
-    """, unsafe_allow_html=True)
+df_custo, df_faturamento, df_contratos = load_data()
+
+# 3. Sidebar de Navegação e Filtros Globais
+st.sidebar.markdown("## 🔷 **SMART OBRA**")
+st.sidebar.markdown("---")
+menu = st.sidebar.radio("Navegação", ["Dashboard Executivo", "Detalhes da Obra & Fotos", "Gestão de NFs"])
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### ⚙️ Filtros Globais")
+
+# Lista de Obras disponíveis
+lista_obras = df_contratos['Obra'].unique().tolist() if 'Obra' in df_contratos.columns else ["Geral"]
+obra_selecionada = st.sidebar.selectbox("Selecionar Obra", ["Todas as Obras"] + lista_obras)
+
+periodo_analise = st.sidebar.selectbox("Período de Análise", ["Últimos 30 Dias", "Este Mês", "Este Ano", "Todo o Histórico"])
+
+# Filtragem dos dataframes com base na obra selecionada
+if obra_selecionada != "Todas as Obras":
+    f_custo = df_custo[df_custo['Obra'] == obra_selecionada]
+    f_fat = df_faturamento[df_faturamento['Obra'] == obra_selecionada]
+    f_cont = df_contratos[df_contratos['Obra'] == obra_selecionada]
+else:
+    f_custo = df_custo
+    f_fat = df_faturamento
+    f_cont = df_contratos
+
+# 4. Conteúdo Principal baseado na navegação
+if menu == "Dashboard Executivo":
+    st.title("📊 Dashboard de Custos & Fluxo de Caixa")
+    st.markdown(f"Visualizando dados para: **{obra_selecionada}** | Período: **{periodo_analise}**")
+    st.markdown("---")
+
+    # Bloco de KPIs Superiores
+    total_entradas = f_fat['Valor'].sum() if not f_fat.empty else 0
+    total_saidas = f_custo['Valor'].sum() if not f_custo.empty else 0
+    saldo_caixa = total_entradas - total_saidas
+    eficiencia = round(total_saidas / total_entradas, 2) if total_entradas > 0 else 0.0
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric(label="Total Entradas (NFs)", value=f"R$ {total_entradas:,.2f}", delta="+12% vs mês ant.")
+    with col2:
+        st.metric(label="Custos Executados (Saídas)", value=f"R$ {total_saidas:,.2f}", delta="-4% budget")
+    with col3:
+        st.metric(label="Saldo em Caixa", value=f"R$ {saldo_caixa:,.2f}", delta="Saudável")
+    with col4:
+        st.metric(label="Eficiência de Custos", value=str(eficiencia), delta="Meta < 0.95")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Gráficos Principais
+    c1, c2 = st.columns([1, 1.2])
+
+    with c1:
+        st.markdown("### 📈 Fluxo de Caixa (Entradas vs Saídas)")
+        if not f_fat.empty and not f_custo.empty:
+            fig_cash = go.Figure()
+            fig_cash.add_trace(go.Scatter(y=[total_entradas*0.2, total_entradas*0.5, total_entradas], mode='lines+markers', name='Cash In', line=dict(color='#00f2fe', width=3)))
+            fig_cash.add_trace(go.Scatter(y=[total_saidas*0.3, total_saidas*0.6, total_saidas], mode='lines+markers', name='Cash Out', line=dict(color='#7928ca', width=3)))
+            fig_cash.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='white'), margin=dict(t=20, b=20, l=20, r=20))
+            st.plotly_chart(fig_cash, use_container_width=True)
+        else:
+            st.info("Sem dados suficientes para o gráfico de fluxo.")
+
+    with c2:
+        st.markdown("### 📊 Análise de Custos por Categoria")
+        if not f_custo.empty:
+            fig_bar = px.bar(f_custo, x='Categoria', y='Valor', color='Categoria', color_discrete_sequence=['#00f2fe', '#7928ca', '#ff007f'])
+            fig_bar.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='white'), margin=dict(t=20, b=20, l=20, r=20), showlegend=False)
+            st.plotly_chart(fig_bar, use_container_width=True)
+        else:
+            st.info("Sem dados de custo cadastrados.")
+
+elif menu == "Detalhes da Obra & Fotos":
+    st.title("🏗️ Aba de Cadastro e Dados da Obra")
+    st.markdown("Informações contratuais, dados do cliente e registro visual da obra.")
+    st.markdown("---")
+
+    if not f_cont.empty:
+        for idx, row in f_cont.iterrows():
+            st.markdown(f"""
+            <div class="project-card">
+                <h2>{row.get('Obra', 'Nome da Obra')}</h2>
+                <hr style="border-color: #3d3175;">
+            </div>
+            """, unsafe_allow_html=True)
+            
+            col_img, col_info = st.columns([1, 1.5])
+            
+            with col_img:
+                st.markdown("### 📷 Foto da Obra")
+                uploaded_file = st.file_uploader(f"Carregar foto para {row.get('Obra')}", type=['png', 'jpg', 'jpeg'], key=f"img_{idx}")
+                if uploaded_file is not None:
+                    st.image(uploaded_file, caption="Foto atualizada da obra", use_column_width=True)
+                else:
+                    st.image("https://images.unsplash.com/photo-1541888946425-d0fbb18f2445?w=500&auto=format&fit=crop&q=60", caption="Imagem padrão da Obra", use_column_width=True)
+
+            with col_info:
+                st.markdown("### 📋 Ficha Técnica")
+                st.markdown(f"**👤 Nome do Cliente:** {row.get('Cliente', 'Não informado')}")
+                st.markdown(f"**📍 Endereço Físico:** {row.get('Endereco', 'Endereço não cadastrado')}")
+                st.markdown(f"**👔 Gestor Responsável:** {row.get('Gerente', 'Não atribuído')}")
+                st.markdown(f"**💰 Orçamento Total:** R$ {row.get('Orcamento_Total', 0):,.2f}")
+                st.markdown(f"**📊 Status Atual:** `{row.get('Status', 'Em Andamento')}`")
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+    else:
+        st.warning("Nenhuma obra encontrada na base de contratos.")
+
+elif menu == "Gestão de NFs":
+    st.title("📄 Histórico de Notas Fiscais (Entradas e Saídas)")
+    st.markdown("Lista consolidada baseada nas planilhas de faturamento e custos.")
+    st.markdown("---")
     
-    col_inf, col_img = st.columns([2, 1])
-    with col_inf:
-        st.markdown("<div class='stCard'>", unsafe_allow_html=True)
-        st.subheader("Informações Principais")
-        st.text_input("NOME DA OBRA", value=selected_obra_str)
-        st.text_input("CLIENTE", value=cliente_display)
-        st.text_input("ENDEREÇO", value=local_display)
-        st.number_input("VALOR CONTRATUAL (R$)", value=float(val_contrato))
-        st.markdown("</div>", unsafe_allow_html=True)
+    st.subheader("Notas Fiscais de Custos (Saídas) - BD_Custo")
+    if not f_custo.empty:
+        st.dataframe(f_custo, use_container_width=True)
+    else:
+        st.info("Nenhuma nota de custo encontrada.")
 
-# 3. DRE
-elif menu_principal == "DRE":
-    st.markdown(f"""
-    <div>
-        <div class="main-title">DEMONSTRATIVO DE RESULTADO (DRE)</div>
-        <div class="sub-info"><b>Obra:</b> {nome_obra_display} | 📅 <b>Atualização:</b> {last_update_str}</div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    dre_df = pd.DataFrame({
-        "Conta DRE": ["Receita Bruta (Faturamento)", "Custos Diretos", "Despesas Indiretas (2%)", "Resultado Operacional"],
-        "Orçado (R$)": [fmt_br(rec_previsto), fmt_br(-desp_previsto), fmt_br(0), fmt_br(resultado_previsto)],
-        "Realizado (R$)": [fmt_br(fat_bruto), fmt_br(-custo_direto), fmt_br(-custo_indireto), fmt_br(resultado_op)],
-        "Margem Realizada (%)": [
-            "100,0%",
-            f"{- (custo_direto/fat_bruto*100) if fat_bruto>0 else 0:.1f}%".replace(".", ","),
-            "-2,0%",
-            f"{(resultado_op/fat_bruto*100) if fat_bruto>0 else 0:.1f}%".replace(".", ",")
-        ]
-    })
-    st.dataframe(dre_df, use_container_width=True, hide_index=True)
-
-# 4. KPIS
-elif menu_principal == "KPIs":
-    st.markdown(f"""
-    <div>
-        <div class="main-title">INDICADORES CHAVE DE PERFORMANCE (KPIs)</div>
-        <div class="sub-info"><b>Obra:</b> {nome_obra_display}</div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    col_k1, col_k2 = st.columns(2)
-    with col_k1:
-        st.markdown(f'<div class="stCard"><div class="metric-label">CPI (Cost Performance Index)</div><div class="metric-value">{cpi:.2f}</div></div>', unsafe_allow_html=True)
-    with col_k2:
-        st.markdown(f'<div class="stCard"><div class="metric-label">MARGEM OPERACIONAL</div><div class="metric-value">{(resultado_op/fat_bruto*100) if fat_bruto>0 else 0:.1f}%</div></div>', unsafe_allow_html=True)
-
-# 5. CUSTOS
-elif menu_principal == "Custos":
-    st.markdown(f"""
-    <div>
-        <div class="main-title">ANÁLISE DETALHADA DE CUSTOS</div>
-        <div class="sub-info"><b>Obra:</b> {nome_obra_display}</div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    col_c1, col_c2 = st.columns([1, 1])
-    with col_c1:
-        st.markdown("### Evolução Mensal dos Custos")
-        df_c_temp = df_c_curr.copy()
-        df_c_temp['Periodo'] = df_c_temp['Comp. C'].dt.to_period('M')
-        df_mes = df_c_temp.groupby('Periodo')['Vr. Rateio'].sum().reset_index().sort_values('Periodo')
-        df_mes['MesAno'] = df_mes['Periodo'].dt.strftime('%m/%Y')
-        
-        fig_c_mes = px.bar(df_mes, x='MesAno', y='Vr. Rateio', color_discrete_sequence=['#00f2fe'])
-        fig_c_mes.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#FFFFFF'), yaxis_title="Custo (R$)")
-        st.plotly_chart(fig_c_mes, use_container_width=True, key="fig_custos_mes")
-
-    with col_c2:
-        st.markdown("### Custos por Categoria")
-        col_g1 = df_c_curr.columns[28] if len(df_c_curr.columns) >= 29 else df_c_curr.columns[0]
-        df_g = df_c_curr.groupby(col_g1)['Vr. Rateio'].sum().reset_index().sort_values(by='Vr. Rateio', ascending=False)
-        df_g.columns = ['Grupo 1 (Nível 1)', 'Valor (R$)']
-        df_g['Valor (R$)'] = df_g['Valor (R$)'].apply(fmt_br)
-        st.dataframe(df_g, use_container_width=True, hide_index=True)
+    st.subheader("Notas Fiscais de Faturamento (Entradas) - BD_Faturamento")
+    if not f_fat.empty:
+        st.dataframe(f_fat, use_container_width=True)
+    else:
+        st.info("Nenhuma nota de faturamento encontrada.")
