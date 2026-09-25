@@ -206,8 +206,13 @@ resultado_previsto = rec_previsto - desp_previsto
 
 rec_realizado = fat_bruto
 desp_realizado = custo_total
-saldo_orcado_realizado = rec_previsto - desp_realizado
+# CORREÇÃO: Saldo orçado realizado = Receita realizada - Despesa realizada
+saldo_orcado_realizado = rec_realizado - desp_realizado
 resultado_realizado = rec_realizado - desp_realizado
+
+# Cálculo de Margens Percentuais
+margem_prevista_pct = (resultado_previsto / rec_previsto * 100) if rec_previsto > 0 else 0.0
+margem_realizada_pct = (resultado_realizado / rec_realizado * 100) if rec_realizado > 0 else 0.0
 
 # Define metadados da obra para exibição no cabeçalho
 if selected_obra_str != "Todas as Obras":
@@ -218,6 +223,44 @@ else:
     nome_obra_display = "PORTFÓLIO GERAL DE OBRAS"
     cliente_display = "Todos os Clientes"
     local_display = "Múltiplas Localidades"
+
+# --- FUNÇÃO PARA CRIAR O GRÁFICO DE VELOCÍMETRO ---
+def criar_grafico_velocimetro():
+    meta_contrato = float(val_contrato) if val_contrato > 0 else 1.0 
+    faturado_atual = float(fat_bruto)
+    
+    fig_gauge = go.Figure(go.Indicator(
+        mode = "gauge+number+delta",
+        value = faturado_atual,
+        domain = {'x': [0, 1], 'y': [0, 1]},
+        title = {'text': "<b>Faturamento vs Contrato</b>", 'font': {'size': 16}},
+        delta = {'reference': meta_contrato, 'increasing': {'color': "green"}},
+        number = {'prefix': "R$ ", 'valueformat': ",.2f"},
+        gauge = {
+            'axis': {'range': [None, meta_contrato], 'tickwidth': 1, 'tickcolor': "darkblue"},
+            'bar': {'color': "#2563EB"},
+            'bgcolor': "white",
+            'borderwidth': 2,
+            'bordercolor': "#E2E8F0",
+            'steps': [
+                {'range': [0, meta_contrato * 0.5], 'color': '#F1F5F9'},
+                {'range': [meta_contrato * 0.5, meta_contrato], 'color': '#E2E8F0'}
+            ],
+            'threshold': {
+                'line': {'color': "red", 'width': 4},
+                'thickness': 0.75,
+                'value': meta_contrato
+            }
+        }
+    ))
+    
+    fig_gauge.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        height=320,
+        margin=dict(l=10, r=10, t=40, b=10)
+    )
+    return fig_gauge
 
 # --- NAVEGAÇÃO ---
 
@@ -311,13 +354,21 @@ if menu_principal == "Visão geral":
 
         st.markdown("---")
 
-        # --- 3. TERCEIRO: GRÁFICO DE ROSCA ---
-        st.markdown("### Composição e Distribuição de Custos")
-        col_g1 = df_c_curr.columns[28] if len(df_c_curr.columns) >= 29 else df_c_curr.columns[0]
-        df_pie = df_c_curr.groupby(col_g1)['Vr. Rateio'].sum().reset_index()
-        fig_pie = px.pie(df_pie, values='Vr. Rateio', names=col_g1, hole=0.55, color_discrete_sequence=px.colors.qualitative.Set2)
-        fig_pie.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-        st.plotly_chart(fig_pie, use_container_width=True, key="pie_vg")
+        # --- 3. TERCEIRO: VELOCÍMETRO (ESQUERDA) E ROSCA (DIREITA) ---
+        col_graf_1, col_graf_2 = st.columns(2)
+        
+        with col_graf_1:
+            st.markdown("### Progresso do Faturamento")
+            fig_gauge = criar_grafico_velocimetro()
+            st.plotly_chart(fig_gauge, use_container_width=True, key="fig_gauge_resumo")
+
+        with col_graf_2:
+            st.markdown("### Composição e Distribuição de Custos")
+            col_g1 = df_c_curr.columns[28] if len(df_c_curr.columns) >= 29 else df_c_curr.columns[0]
+            df_pie = df_c_curr.groupby(col_g1)['Vr. Rateio'].sum().reset_index()
+            fig_pie = px.pie(df_pie, values='Vr. Rateio', names=col_g1, hole=0.55, color_discrete_sequence=px.colors.qualitative.Set2)
+            fig_pie.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=320, margin=dict(l=10, r=10, t=40, b=10))
+            st.plotly_chart(fig_pie, use_container_width=True, key="pie_vg")
 
     elif sub_aba == "Financeiro":
         # --- BLOCO DE RESUMO FINANCEIRO ---
@@ -355,7 +406,7 @@ if menu_principal == "Visão geral":
         with col_r4:
             st.markdown(f'''
             <div class="card-resumo">
-                <div class="card-resumo-label">Resultado (previsto)</div>
+                <div class="card-resumo-label">Resultado (previsto) - Margem: {margem_prevista_pct:.1f}%</div>
                 <div class="{classe_res_previsto}">{fmt_br(resultado_previsto)}</div>
             </div>
             ''', unsafe_allow_html=True)
@@ -391,7 +442,7 @@ if menu_principal == "Visão geral":
         with col_r8:
             st.markdown(f'''
             <div class="card-resumo">
-                <div class="card-resumo-label">Resultado (realizado)</div>
+                <div class="card-resumo-label">Resultado (realizado) - Margem: {margem_realizada_pct:.1f}%</div>
                 <div class="{classe_res_realizado}">{fmt_br(resultado_realizado)}</div>
             </div>
             ''', unsafe_allow_html=True)
@@ -400,43 +451,8 @@ if menu_principal == "Visão geral":
 
         # --- GRÁFICO DE VELOCÍMETRO (GAUGE CHART) ---
         st.subheader("Progresso do Faturamento vs. Valor Total do Contrato")
-        
-        meta_contrato = float(val_contrato) if val_contrato > 0 else 1.0 # Evita divisão por zero
-        faturado_atual = float(fat_bruto)
-        
-        fig_gauge = go.Figure(go.Indicator(
-            mode = "gauge+number+delta",
-            value = faturado_atual,
-            domain = {'x': [0, 1], 'y': [0, 1]},
-            title = {'text': "<b>Faturamento Realizado vs Meta (Contrato)</b>", 'font': {'size': 18}},
-            delta = {'reference': meta_contrato, 'increasing': {'color': "green"}},
-            number = {'prefix': "R$ ", 'valueformat': ",.2f"},
-            gauge = {
-                'axis': {'range': [None, meta_contrato], 'tickwidth': 1, 'tickcolor': "darkblue"},
-                'bar': {'color': "#2563EB"},
-                'bgcolor': "white",
-                'borderwidth': 2,
-                'bordercolor': "#E2E8F0",
-                'steps': [
-                    {'range': [0, meta_contrato * 0.5], 'color': '#F1F5F9'},
-                    {'range': [meta_contrato * 0.5, meta_contrato], 'color': '#E2E8F0'}
-                ],
-                'threshold': {
-                    'line': {'color': "red", 'width': 4},
-                    'thickness': 0.75,
-                    'value': meta_contrato
-                }
-            }
-        ))
-        
-        fig_gauge.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            height=350,
-            margin=dict(l=20, r=20, t=50, b=20)
-        )
-        
-        st.plotly_chart(fig_gauge, use_container_width=True, key="fig_velocimetro_faturamento")
+        fig_gauge_fin = criar_grafico_velocimetro()
+        st.plotly_chart(fig_gauge_fin, use_container_width=True, key="fig_velocimetro_faturamento")
 
         st.markdown("---")
 
