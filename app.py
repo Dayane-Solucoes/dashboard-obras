@@ -184,10 +184,8 @@ resultado_op = fat_bruto - custo_total
 cpi = (fat_bruto / custo_direto) if custo_direto > 0 else 1.0
 
 # --- EXTRAÇÃO DO PREVISTO (DA PLANILHA CONTRATOS) ---
-# Receita Prevista = Valor Final Contratual
 rec_previsto = float(val_contrato)
 
-# Despesa Prevista / Custo Previsto
 col_custo_previsto = None
 possiveis_colunas = ['Custo Previsto', 'Valor Previsto', 'Orcamento', 'Orcado', 'Custo Orçado', 'Custo Orcado', 'Valor Orçado']
 
@@ -203,12 +201,9 @@ if col_custo_previsto and col_custo_previsto in df_cont_curr:
 else:
     desp_previsto = 0.0
 
-# Cálculos da Visão Previsto
-orcado_custo = desp_previsto
 saldo_orcado_previsto = rec_previsto - desp_previsto
 resultado_previsto = rec_previsto - desp_previsto
 
-# Cálculos da Visão Realizado
 rec_realizado = fat_bruto
 desp_realizado = custo_total
 saldo_orcado_realizado = rec_previsto - desp_realizado
@@ -328,7 +323,6 @@ if menu_principal == "Visão geral":
         # --- BLOCO DE RESUMO FINANCEIRO ---
         st.markdown('<div class="resumo-header">Resumo financeiro</div>', unsafe_allow_html=True)
 
-        # Definição das cores dinâmicas para os resultados (Verde se >= 0, Vermelho se < 0)
         classe_res_previsto = "card-resumo-val-red" if resultado_previsto < 0 else "card-resumo-val-green"
         classe_res_realizado = "card-resumo-val-red" if resultado_realizado < 0 else "card-resumo-val-green"
 
@@ -401,6 +395,48 @@ if menu_principal == "Visão geral":
                 <div class="{classe_res_realizado}">{fmt_br(resultado_realizado)}</div>
             </div>
             ''', unsafe_allow_html=True)
+
+        st.markdown("---")
+
+        # --- GRÁFICO DE VELOCÍMETRO (GAUGE CHART) ---
+        st.subheader("Progresso do Faturamento vs. Valor Total do Contrato")
+        
+        meta_contrato = float(val_contrato) if val_contrato > 0 else 1.0 # Evita divisão por zero
+        faturado_atual = float(fat_bruto)
+        
+        fig_gauge = go.Figure(go.Indicator(
+            mode = "gauge+number+delta",
+            value = faturado_atual,
+            domain = {'x': [0, 1], 'y': [0, 1]},
+            title = {'text': "<b>Faturamento Realizado vs Meta (Contrato)</b>", 'font': {'size': 18}},
+            delta = {'reference': meta_contrato, 'increasing': {'color': "green"}},
+            number = {'prefix': "R$ ", 'valueformat': ",.2f"},
+            gauge = {
+                'axis': {'range': [None, meta_contrato], 'tickwidth': 1, 'tickcolor': "darkblue"},
+                'bar': {'color': "#2563EB"},
+                'bgcolor': "white",
+                'borderwidth': 2,
+                'bordercolor': "#E2E8F0",
+                'steps': [
+                    {'range': [0, meta_contrato * 0.5], 'color': '#F1F5F9'},
+                    {'range': [meta_contrato * 0.5, meta_contrato], 'color': '#E2E8F0'}
+                ],
+                'threshold': {
+                    'line': {'color': "red", 'width': 4},
+                    'thickness': 0.75,
+                    'value': meta_contrato
+                }
+            }
+        ))
+        
+        fig_gauge.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            height=350,
+            margin=dict(l=20, r=20, t=50, b=20)
+        )
+        
+        st.plotly_chart(fig_gauge, use_container_width=True, key="fig_velocimetro_faturamento")
 
         st.markdown("---")
 
